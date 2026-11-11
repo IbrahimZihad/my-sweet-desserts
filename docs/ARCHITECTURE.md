@@ -23,7 +23,7 @@
                    └─────────┘  └────────┘  └────────────┘
 ```
 
-The browser never talks to the API container directly. Next.js is both the UI
+The browser never talks to the API service directly. Next.js is both the UI
 and the backend-for-frontend (BFF): it validates input, rate limits, resolves the
 tenant, and forwards authenticated requests with the shared BFF key.
 
@@ -73,6 +73,17 @@ from the resolved tenant, and no client-supplied `bakeryId` is accepted.
 Money is stored in integer cents. Currency is captured on the order so a later
 bakery currency change cannot rewrite history. Customer name/email/phone are
 snapshotted onto the order because the `User` profile is mutable.
+
+### Migrations and seeders
+
+- Schema changes are made in `prisma/schema.prisma` and captured as committed SQL
+  in `prisma/migrations/` (`pnpm db:migrate --name <change>`).
+- `pnpm db:deploy` applies pending migrations in staging/production as a release
+  step; the API never migrates at boot.
+- `prisma/seed/` holds idempotent development seeders (bakery, staff, catalog,
+  slots, demo booking). Re-running never resets consumed slot capacity and never
+  duplicates the demo booking.
+- The seeder refuses `NODE_ENV=production` unless `SEED_ALLOW_PRODUCTION=1`.
 
 ## 4. Booking state machine
 
@@ -223,15 +234,14 @@ email lost” failure and survives a Resend outage.
 ## 10. Deployment topology
 
 ```
-Vercel / Next container ──▶ API container (private) ──▶ MySQL (managed)
-                                      │
-                                      ├──▶ Stripe webhooks
-                                      └──▶ Resend
+Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ MySQL (managed)
+                          │
+                          ├──▶ Stripe webhooks
+                          └──▶ Resend
 ```
 
-- The API Docker entrypoint runs `prisma migrate deploy` before boot.
+- The release step runs `pnpm db:deploy` before the API process starts.
 - The API has `/health` outside the `/v1` prefix for load balancer checks.
-- Web builds use Next standalone output (`NEXT_STANDALONE=1`).
 - Stripe webhook URL: `https://api.<domain>/v1/payments/webhook`.
 - Keep the API behind a proxy/firewall that only allows the web app, Stripe
   webhook IPs and health checks.

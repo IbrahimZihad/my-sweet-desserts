@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE `Bakery` (
     `id` VARCHAR(191) NOT NULL,
     `slug` VARCHAR(63) NOT NULL,

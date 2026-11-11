@@ -11,7 +11,7 @@ Browser ──(httpOnly cookies, JSON)──▶ Next.js BFF ──(JWT + x-inter
 - The browser is untrusted. Every value is re-validated with Zod on the BFF and
   again in the API.
 - The Next.js server is trusted to hold `INTERNAL_API_KEY` and call the API.
-- The API container is **not** intended to be publicly routable. Only
+- The API service is **not** intended to be publicly routable. Only
   `/v1/payments/webhook` and `/health` are exempt from the BFF key.
 - Stripe is authenticated by webhook signature, not by the BFF key.
 

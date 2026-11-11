@@ -6,8 +6,10 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  // Only used by `prisma migrate dev`; ignored by `migrate deploy`.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
