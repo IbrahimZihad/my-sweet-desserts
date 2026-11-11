@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Headers, Post, RawBodyRequest, Req } f
 import { SkipThrottle } from "@nestjs/throttler";
 import type { Request } from "express";
 import { Public, SkipTenant } from "../common/decorators/auth.decorators";
+import { SkipInternalKey } from "../common/decorators/internal-key.decorator";
 import { PaymentsService } from "./payments.service";
 
 @Controller("payments")
@@ -14,6 +15,7 @@ export class PaymentsController {
    */
   @Public()
   @SkipTenant()
+  @SkipInternalKey()
   @SkipThrottle()
   @Post("webhook")
   webhook(
