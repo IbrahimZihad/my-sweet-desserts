@@ -21,6 +21,7 @@ export async function POST(): Promise<NextResponse> {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.delete(ACCESS_COOKIE);
-  response.cookies.delete(REFRESH_COOKIE);
+  // The refresh cookie is scoped to /api/auth, so it needs an explicit path.
+  response.cookies.set(REFRESH_COOKIE, "", { path: "/api/auth", maxAge: 0 });
   return response;
 }

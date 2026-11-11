@@ -1,8 +1,10 @@
 export function formatMoney(cents: number, currency = "AUD"): string {
+  const hasCents = cents % 100 !== 0;
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency,
-    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
   }).format(cents / 100);
 }
 

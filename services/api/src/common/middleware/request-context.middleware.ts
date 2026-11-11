@@ -42,6 +42,9 @@ export class RequestContextMiddleware implements NestMiddleware {
     try {
       if (slugHeader) {
         req.bakery = await this.bySlug(slugHeader);
+      } else if (host.endsWith(".localhost") || host === "localhost" || isIpAddress(host)) {
+        // Local development and direct container health checks: only a slug can identify a tenant.
+        req.bakery = await this.bySlug(this.subdomain(host));
       } else if (host) {
         req.bakery = (await this.byCustomDomain(host)) ?? (await this.bySlug(this.subdomain(host)));
       }
@@ -74,6 +77,7 @@ export class RequestContextMiddleware implements NestMiddleware {
   }
 
   private async byCustomDomain(host: string): Promise<RequestWithContext["bakery"]> {
+    if (!host.includes(".")) return undefined;
     const cached = this.cache.get(`host:${host}`);
     if (cached && cached.expiresAt > Date.now()) return cached.bakery;
 
@@ -84,4 +88,8 @@ export class RequestContextMiddleware implements NestMiddleware {
     if (bakery) this.cache.set(`host:${host}`, { bakery, expiresAt: Date.now() + this.ttlMs });
     return bakery ?? undefined;
   }
+}
+
+function isIpAddress(host: string): boolean {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
 }

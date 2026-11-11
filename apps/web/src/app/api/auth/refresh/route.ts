@@ -37,7 +37,7 @@ export async function POST(): Promise<NextResponse> {
     if (caught instanceof ApiError && caught.status === 401) {
       const response = NextResponse.json(caught.body, { status: 401 });
       response.cookies.delete(ACCESS_COOKIE);
-      response.cookies.delete(REFRESH_COOKIE);
+      response.cookies.set(REFRESH_COOKIE, "", { path: "/api/auth", maxAge: 0 });
       return response;
     }
     return NextResponse.json(

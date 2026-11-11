@@ -36,7 +36,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
   ) {
     this.stripe = new Stripe(this.config.getOrThrow<string>("STRIPE_SECRET_KEY"), {
-      apiVersion: "2024-11-20.acacia",
+      apiVersion: "2025-02-24.acacia",
       typescript: true,
       maxNetworkRetries: 2,
     });
@@ -100,7 +100,7 @@ export class PaymentsService {
             id: true,
             bakeryId: true,
             depositRefundedAt: true,
-            bakery: { select: { stripeAccountId: true } },
+            bakery: { select: { stripeAccountId: true, stripeChargesEnabled: true } },
           },
         },
       },
@@ -116,7 +116,9 @@ export class PaymentsService {
       return { refunded: true, alreadyRefunded: true, amountCents: payment.refundedCents };
     }
 
-    const isDestinationCharge = Boolean(payment.order.bakery.stripeAccountId);
+    const isDestinationCharge = Boolean(
+      payment.order.bakery.stripeAccountId && payment.order.bakery.stripeChargesEnabled,
+    );
     const refund = await this.stripe.refunds.create(
       {
         payment_intent: payment.stripePaymentIntentId,
@@ -133,6 +135,8 @@ export class PaymentsService {
       { idempotencyKey: `refund:${payment.id}` },
     );
 
+    const refundAmount = payment.amountCents - payment.refundedCents;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
@@ -140,6 +144,21 @@ export class PaymentsService {
           status: PaymentStatus.REFUNDED,
           stripeRefundId: refund.id,
           refundedCents: payment.amountCents,
+          refundedAt: new Date(),
+        },
+      });
+      await tx.payment.create({
+        data: {
+          bakeryId: payment.bakeryId,
+          orderId,
+          kind: PaymentKind.REFUND,
+          status: PaymentStatus.REFUNDED,
+          amountCents: refundAmount,
+          currency: payment.currency,
+          stripeRefundId: refund.id,
+          stripePaymentIntentId: null,
+          refundable: false,
+          refundedCents: refundAmount,
           refundedAt: new Date(),
         },
       });
@@ -230,7 +249,11 @@ export class PaymentsService {
     if (!stale) return null;
 
     const claimed = await this.prisma.stripeEvent.updateMany({
-      where: { id: existing.id, processedAt: null },
+      where: {
+        id: existing.id,
+        processedAt: null,
+        OR: [{ processingAt: null }, { processingAt: { lt: new Date(Date.now() - 5 * 60_000) } }],
+      },
       data: { processingAt: new Date(), attempts: { increment: 1 } },
     });
     return claimed.count === 1 ? { id: existing.id } : null;
@@ -258,8 +281,8 @@ export class PaymentsService {
   private async onDepositSucceeded(intent: Stripe.PaymentIntent): Promise<void> {
     const payment = await this.findDepositPayment(intent);
     if (!payment) {
-      this.logger.error(`No payment row for PaymentIntent ${intent.id}`);
-      return;
+      // Do not acknowledge money we cannot account for; let Stripe retry.
+      throw new Error(`No payment row for PaymentIntent ${intent.id}`);
     }
 
     if (intent.amount !== payment.amountCents || intent.currency.toUpperCase() !== payment.currency) {
@@ -295,7 +318,10 @@ export class PaymentsService {
           where: { id: payment.orderId },
           select: { status: true },
         });
-        return { needsRefund: current?.status !== OrderStatus.CONFIRMED };
+        return {
+          needsRefund:
+            current?.status === OrderStatus.EXPIRED || current?.status === OrderStatus.CANCELLED,
+        };
       }
 
       const order = await tx.order.findUniqueOrThrow({

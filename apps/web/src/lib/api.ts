@@ -53,7 +53,12 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   });
 
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as unknown) : null;
+  let payload: unknown = null;
+  try {
+    payload = text ? (JSON.parse(text) as unknown) : null;
+  } catch {
+    payload = null;
+  }
 
   if (!response.ok) {
     const body =

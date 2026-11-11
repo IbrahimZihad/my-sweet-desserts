@@ -67,7 +67,10 @@ export class NotificationsService {
           continue;
         }
 
-        const { subject, html } = this.render(job.template, job.payload);
+        const { subject, html } = this.render(
+          job.template as EmailJob["template"],
+          (job.payload ?? {}) as Record<string, unknown>,
+        );
         const { error } = await this.resend.emails.send({
           from: this.from,
           to: job.toEmail,

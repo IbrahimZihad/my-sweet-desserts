@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  // Standalone tracing uses symlinks that Windows blocks without developer mode.
+  // Docker builds opt in explicitly; local builds keep the normal output.
+  output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined,
   reactStrictMode: true,
   transpilePackages: ["@cakeflow/contracts"],
   poweredByHeader: false,

@@ -4,10 +4,10 @@ RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /repo
 
 FROM base AS deps
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/contracts/package.json packages/contracts/
 COPY services/api/package.json services/api/
-RUN pnpm install --frozen-lockfile=false --filter @cakeflow/api... 
+RUN pnpm install --frozen-lockfile --filter @cakeflow/api...
 
 FROM deps AS build
 COPY tsconfig.base.json ./
@@ -28,5 +28,6 @@ COPY --from=build /repo/services/api ./services/api
 COPY --from=build /repo/pnpm-workspace.yaml /repo/package.json ./
 WORKDIR /repo/services/api
 EXPOSE 4000
+# Run as an unprivileged user. The entrypoint only needs read access.
 USER node
-CMD ["node", "dist/main.js"]
+CMD ["sh", "./docker-entrypoint.sh"]

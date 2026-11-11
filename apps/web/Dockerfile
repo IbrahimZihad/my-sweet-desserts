@@ -4,10 +4,10 @@ RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /repo
 
 FROM base AS deps
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/contracts/package.json packages/contracts/
 COPY apps/web/package.json apps/web/
-RUN pnpm install --frozen-lockfile=false --filter @cakeflow/web...
+RUN pnpm install --frozen-lockfile --filter @cakeflow/web...
 
 FROM deps AS build
 COPY tsconfig.base.json ./
@@ -15,6 +15,7 @@ COPY packages/contracts packages/contracts
 COPY apps/web apps/web
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ENV NEXT_STANDALONE=1
 RUN pnpm --filter @cakeflow/contracts build && pnpm --filter @cakeflow/web build
 
 # ─── runtime (Next standalone) ───────────────────────────────

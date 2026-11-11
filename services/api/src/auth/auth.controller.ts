@@ -2,7 +2,7 @@ import { Body, Controller, Get, Ip, Post, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { loginSchema, refreshSchema, type LoginInput } from "@cakeflow/contracts";
 import type { Request } from "express";
-import { Public } from "../common/decorators/auth.decorators";
+import { Public, SkipTenant } from "../common/decorators/auth.decorators";
 import { CurrentUser, TenantId, type AuthenticatedUser } from "../common/decorators/request.decorators";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 import { AuthService } from "./auth.service";
@@ -27,6 +27,7 @@ export class AuthController {
   }
 
   @Public()
+  @SkipTenant()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post("refresh")
   async refresh(@Body(new ZodValidationPipe(refreshSchema)) body: { refreshToken: string }) {
@@ -34,6 +35,7 @@ export class AuthController {
   }
 
   @Public()
+  @SkipTenant()
   @Post("logout")
   async logout(@Body() body: { refreshToken?: string }) {
     await this.auth.logout(body?.refreshToken);

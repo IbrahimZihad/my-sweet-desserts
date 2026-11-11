@@ -36,9 +36,23 @@ export async function GET(request: Request): Promise<NextResponse> {
     ...(parsed.data.cakeId ? { cakeId: parsed.data.cakeId } : {}),
   });
 
+  let tenantSlug: string;
+  try {
+    tenantSlug = resolveTenantSlugFromHeaders(request.headers);
+  } catch {
+    return NextResponse.json(
+      {
+        statusCode: 400,
+        code: "TENANT_INVALID",
+        message: "Unknown bakery.",
+      } satisfies ApiErrorBody,
+      { status: 400 },
+    );
+  }
+
   try {
     const availability = await apiFetch<AvailabilityResponse>(`/v1/slots?${query}`, {
-      tenantSlug: resolveTenantSlugFromHeaders(request.headers),
+      tenantSlug,
     });
     return NextResponse.json(availability, {
       headers: { "Cache-Control": "no-store" },

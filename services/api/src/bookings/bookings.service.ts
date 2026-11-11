@@ -245,7 +245,7 @@ export class BookingsService {
   async cancelByCustomer(bakeryId: string, reference: string, email: string) {
     const order = await this.prisma.order.findFirst({
       where: { bakeryId, reference, customerEmail: email.toLowerCase().trim() },
-      include: { slot: true },
+      include: { slot: true, payments: { where: { kind: PaymentKind.DEPOSIT } } },
     });
     if (!order) {
       throw new NotFoundException({ code: "BOOKING_NOT_FOUND", message: "Booking not found." });
@@ -254,7 +254,8 @@ export class BookingsService {
       throw new ConflictException({ code: "BOOKING_NOT_ACTIVE", message: "This booking is no longer active." });
     }
 
-    const refundable = this.isRefundEligible(order);
+    const paidDeposit = order.payments.some((payment) => payment.status === PaymentStatus.SUCCEEDED);
+    const refundable = paidDeposit && this.isRefundEligible(order);
     const refund = refundable ? await this.payments.refundDeposit(order.id) : null;
 
     await this.finalizeCancellation({
@@ -611,13 +612,11 @@ export class BookingsService {
   }
 
   private isRefundEligible(order: {
-    status: OrderStatus;
     depositRefundable: boolean;
     refundWindowHours: number;
     slot: { startsAt: Date };
   }): boolean {
     if (!order.depositRefundable) return false;
-    if (order.status !== OrderStatus.CONFIRMED) return false;
     const cutoff = order.slot.startsAt.getTime() - order.refundWindowHours * 3_600_000;
     return Date.now() <= cutoff;
   }

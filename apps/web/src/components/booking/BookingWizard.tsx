@@ -88,6 +88,19 @@ export function BookingWizard({
       : Math.min(store.depositValue, total);
   }, [cake, selectedSlot, store.depositType, store.depositValue]);
 
+  const refreshSummary = useCallback(
+    async (reference: string) => {
+      const response = await fetch(
+        `/api/bookings/${encodeURIComponent(reference)}?email=${encodeURIComponent(form.email.trim())}`,
+      );
+      if (!response.ok) return null;
+      const data = (await response.json()) as BookingSummaryDto;
+      setSummary(data);
+      return data;
+    },
+    [form.email],
+  );
+
   const submit = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
@@ -141,20 +154,7 @@ export function BookingWizard({
         setSubmitting(false);
       }
     },
-    [accepted, cakeId, form, slotId],
-  );
-
-  const refreshSummary = useCallback(
-    async (reference: string) => {
-      const response = await fetch(
-        `/api/bookings/${encodeURIComponent(reference)}?email=${encodeURIComponent(form.email.trim())}`,
-      );
-      if (!response.ok) return null;
-      const data = (await response.json()) as BookingSummaryDto;
-      setSummary(data);
-      return data;
-    },
-    [form.email],
+    [accepted, cakeId, form, slotId, refreshSummary],
   );
 
   useEffect(() => {
