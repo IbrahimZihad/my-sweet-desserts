@@ -325,6 +325,7 @@ model StripeEvent {
   stripeEventId String   @unique @db.VarChar(255)
   type          String   @db.VarChar(120)
   payload       Json
+  processingAt  DateTime?
   processedAt   DateTime?
   error         String?  @db.Text
   attempts      Int      @default(0)
