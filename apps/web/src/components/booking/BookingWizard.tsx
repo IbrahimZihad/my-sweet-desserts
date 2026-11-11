@@ -42,16 +42,19 @@ export function BookingWizard({
   const [error, setError] = useState<string | null>(null);
   const [booking, setBooking] = useState<CreateBookingResponse | null>(null);
   const [summary, setSummary] = useState<BookingSummaryDto | null>(null);
-  const idempotencyKey = useRef<string>(crypto.randomUUID());
+  // Created lazily: a new attempt after a failed/expired hold needs a fresh key,
+  // otherwise the API would resume the dead order and answer 410 HOLD_EXPIRED.
+  const idempotencyKey = useRef<string | null>(null);
 
   const cake = store.cakes.find((item) => item.id === cakeId);
   const selectedSlot = slots.find((item) => item.id === slotId);
   const today = todayInZone(store.timezone);
   const maxDate = useMemo(() => {
-    const value = new Date();
+    // Anchor at midday UTC so DST shifts can never move the calendar day.
+    const value = new Date(`${todayInZone(store.timezone)}T12:00:00Z`);
     value.setUTCDate(value.getUTCDate() + store.maxAdvanceDays);
     return value.toISOString().slice(0, 10);
-  }, [store.maxAdvanceDays]);
+  }, [store.maxAdvanceDays, store.timezone]);
 
   useEffect(() => {
     if (!cakeId) return;
@@ -116,12 +119,13 @@ export function BookingWizard({
       }
 
       setSubmitting(true);
+      const key = idempotencyKey.current ?? (idempotencyKey.current = crypto.randomUUID());
       try {
         const response = await fetch("/api/bookings", {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "idempotency-key": idempotencyKey.current,
+            "idempotency-key": key,
           },
           body: JSON.stringify({
             cakeId,
@@ -137,9 +141,21 @@ export function BookingWizard({
         });
 
         const payload = (await response.json()) as CreateBookingResponse & {
+          code?: string;
           message?: string;
         };
-        if (!response.ok) throw new Error(payload.message ?? "Booking could not be created.");
+        if (!response.ok) {
+          // The server already cancelled the hold for these codes, so resuming
+          // the same idempotency key is pointless — start a clean attempt.
+          if (
+            payload.code === "HOLD_EXPIRED" ||
+            payload.code === "PAYMENT_INTENT_UNAVAILABLE" ||
+            payload.code === "PAYMENT_PROVIDER_ERROR"
+          ) {
+            idempotencyKey.current = null;
+          }
+          throw new Error(payload.message ?? "Booking could not be created.");
+        }
 
         setBooking(payload);
         if (payload.status === "CONFIRMED") {
@@ -171,6 +187,7 @@ export function BookingWizard({
           return;
         }
         if (data && ["CANCELLED", "EXPIRED"].includes(data.status)) {
+          idempotencyKey.current = null;
           setError("The hold expired before payment completed. Please book again.");
           setPhase("choose");
           return;

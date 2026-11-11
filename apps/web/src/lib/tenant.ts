@@ -23,7 +23,10 @@ export function resolveTenantSlugFromHeaders(headersList: Headers): string {
     .split(":")[0]!;
 
   const labels = host.split(".");
-  const isSubdomain = host.endsWith(".localhost") || labels.length >= 3;
+  // An IPv4/IPv6 literal is never a tenant subdomain: 127.0.0.1 has three dots
+  // but "127" is not a bakery. Fall back to the default tenant instead.
+  const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":") || host.startsWith("[");
+  const isSubdomain = !isIpLiteral && (host.endsWith(".localhost") || labels.length >= 3);
   if (isSubdomain) {
     const label = labels[0]!;
     if (label && label !== "www" && label !== "app") return sanitizeSlug(label);

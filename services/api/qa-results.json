@@ -1,0 +1,380 @@
+[
+  {
+    "phase": "Health & internal key",
+    "name": "GET /health returns ok and DB up",
+    "ok": true,
+    "detail": "latency 1ms"
+  },
+  {
+    "phase": "Health & internal key",
+    "name": "public API rejects missing internal key",
+    "ok": true,
+    "detail": "BFF_KEY_REQUIRED"
+  },
+  {
+    "phase": "Health & internal key",
+    "name": "public API rejects wrong internal key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Health & internal key",
+    "name": "webhook stays reachable without internal key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Tenant resolution",
+    "name": "storefront without tenant context is rejected",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Tenant resolution",
+    "name": "unknown tenant slug is rejected",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Tenant resolution",
+    "name": "known tenant returns branded storefront",
+    "ok": true,
+    "detail": "3 cakes"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "wrong password returns 401",
+    "ok": true,
+    "detail": "Email or password is incorrect."
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "unknown email returns the same 401 (no user enumeration)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "owner can sign in",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"user\":{\"id\":\"cmwbq9qev0002zm04p94z0rga\",\"bakeryId\":\"cmwbq9qaz0000zm04cd1wgyrl\",\"email\":\"owner@sweetcrumbs.test\",\"name\":\"Mia Chen\",\"role\":\"OWNER\"},\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXdicTlxZXYwMDAyem0wNHA5NHowcmdhIiwiYmFrZXJ5SWQiOiJjbXdicTlxYXowMDAwem0wNGNkMXdneXJsIiwicm9sZSI6Ik9XTkVSIiwic2lkIjoiY213YnF2NjNrMDAwMW1rYW05aXA5dmk3dyIsImlhdCI6MTc5NDM3ODg5NywiZXhwIjoxNzk0"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "GET /v1/auth/me requires a token",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "GET /v1/auth/me rejects a tampered token",
+    "ok": false,
+    "error": "Cannot read properties of null (reading 'slice')"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "GET /v1/auth/me returns the signed-in owner",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"e0c6a84c-42e8-4dc6-87ab-9bd1a35b3b75\"}"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "refresh rotates the refresh token",
+    "ok": false,
+    "error": "expected HTTP 200, got 400: {\"statusCode\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"refreshToken\":[\"Expected string, received null\"]}},\"requestId\":\"bff698c8-93cb-4ba4-aee3-5113c66feaf0\"}"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "staff can sign in and is blocked from owner-only slot admin",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"user\":{\"id\":\"cmwbq9qig0004zm04781dp6cs\",\"bakeryId\":\"cmwbq9qaz0000zm04cd1wgyrl\",\"email\":\"staff@sweetcrumbs.test\",\"name\":\"Jordan Lee\",\"role\":\"STAFF\"},\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXdicTlxaWcwMDA0em0wNDc4MWRwNmNzIiwiYmFrZXJ5SWQiOiJjbXdicTlxYXowMDAwem0wNGNkMXdneXJsIiwicm9sZSI6IlNUQUZGIiwic2lkIjoiY213YnF2NjZlMDAwM21rYW05ZHByZnQwNyIsImlhdCI6MTc5NDM3ODg5NywiZXhwIjoxNz"
+  },
+  {
+    "phase": "Auth & roles",
+    "name": "admin endpoints reject anonymous access",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "owner lists slots",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"1399432b-fd94-4748-a03c-20b69f265fb1\"}"
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "slot generation rejects invalid capacity",
+    "ok": false,
+    "error": "expected HTTP 400, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"1511f19e-f9fc-4f92-b528-b6a2fafc0c74\"}"
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "slot generation is idempotent",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"9d116d4c-90bc-4993-8712-f4f15c90f0e3\"}"
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "capacity cannot drop below existing bookings",
+    "ok": false,
+    "error": "expected HTTP 409, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"1ff1d55c-5bb2-4b86-9089-868e01c718c8\"}"
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "owner closes and reopens a slot",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"318c1e59-0e28-4956-b503-337350e42be2\"}"
+  },
+  {
+    "phase": "Admin slots & capacity",
+    "name": "admin stats respond for owner",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"7dec9b57-a8f1-417c-a863-759092168947\"}"
+  },
+  {
+    "phase": "Availability",
+    "name": "availability requires from/to",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Availability",
+    "name": "availability rejects inverted range",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Availability",
+    "name": "availability hides slots inside the lead time",
+    "ok": true,
+    "detail": "0 slots offered"
+  },
+  {
+    "phase": "Availability",
+    "name": "availability returns remaining capacity",
+    "ok": true,
+    "detail": "2/2 free"
+  },
+  {
+    "phase": "Availability",
+    "name": "availability rejects unknown cake",
+    "ok": false,
+    "error": "expected HTTP 404, got 400: {\"statusCode\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"cakeId\":[\"Invalid cuid2\"]}},\"requestId\":\"3e1e5c65-2ae7-4132-a31b-bed8e98d81bf\"}"
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "booking requires an idempotency key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "booking rejects an unknown slot",
+    "ok": false,
+    "error": "expected HTTP 404, got 400: {\"statusCode\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"slotId\":[\"Invalid cuid2\"]}},\"requestId\":\"67b8877f-989e-42c3-b64d-e32096456f8e\"}"
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "booking enforces the 48h lead time",
+    "ok": true,
+    "detail": "This cake needs at least 48 hours notice. Please choose a later slot."
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "booking enforces max advance days",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "booking rejects a full slot without charging",
+    "ok": false,
+    "error": "\nInvalid `prisma.slot.create()` invocation:\n\n\nUnique constraint failed on the constraint: `Slot_bakeryId_startsAt_key`"
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "Stripe failure rolls back capacity and cancels the hold",
+    "ok": true,
+    "detail": "CF-5PHZNB cancelled, capacity released"
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "replaying the same idempotency key cannot resurrect a cancelled hold",
+    "ok": true,
+    "detail": "known UX trap: UI must mint a new key"
+  },
+  {
+    "phase": "Booking API (payment provider intentionally unavailable)",
+    "name": "a fresh key succeeds in reserving again after provider recovery",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Booking lookup & cancellation",
+    "name": "lookup with the right email returns the demo booking",
+    "ok": true,
+    "detail": "SUCCEEDED deposit"
+  },
+  {
+    "phase": "Booking lookup & cancellation",
+    "name": "lookup with the wrong email is indistinguishable from missing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Booking lookup & cancellation",
+    "name": "customer can cancel an unpaid hold and capacity returns",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"reference\":\"QA-18AB9CBB27\",\"status\":\"CANCELLED\",\"refunded\":false,\"refundedCents\":0}"
+  },
+  {
+    "phase": "Booking lookup & cancellation",
+    "name": "cancelling the seeded CONFIRMED booking without a Stripe PI surfaces a defect",
+    "ok": false,
+    "error": "DEFECT: cancellation returns 404 and leaves order CONFIRMED; seeded/legacy succeeded payments lack stripePaymentIntentId"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "invalid signature is rejected",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "unknown event types are acknowledged and stored",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"received\":true}"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "payment_intent.succeeded confirms a HELD order exactly once",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"received\":true}"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "duplicate webhook delivery is idempotent",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"received\":true,\"duplicate\":true}"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "amount mismatch fails loudly and leaves the order unconfirmed",
+    "ok": true,
+    "detail": "event parked for retry: Amount/currency mismatch for PaymentIntent pi_qa_mismatch_8E"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "payment_intent.payment_failed keeps the hold alive",
+    "ok": false,
+    "error": "\nInvalid `prisma.slot.create()` invocation:\n\n\nUnique constraint failed on the constraint: `Slot_bakeryId_startsAt_key`"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "payment_intent.canceled expires the order and releases the slot",
+    "ok": false,
+    "error": "\nInvalid `prisma.slot.create()` invocation:\n\n\nUnique constraint failed on the constraint: `Slot_bakeryId_startsAt_key`"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "late payment on an expired order never confirms it",
+    "ok": false,
+    "error": "DEFECT: automatic refund failed (An unexpected error occurred.); money captured without refund because Stripe call failed"
+  },
+  {
+    "phase": "Stripe webhooks (signed)",
+    "name": "charge.refunded syncs the payment ledger",
+    "ok": false,
+    "error": "expected HTTP 200, got 201: {\"received\":true}"
+  },
+  {
+    "phase": "Tenant isolation",
+    "name": "a second tenant only sees its own storefront",
+    "ok": true,
+    "detail": "storefront + booking lookup scoped"
+  },
+  {
+    "phase": "Tenant isolation",
+    "name": "admin token cannot be retargeted with a tenant header",
+    "ok": false,
+    "error": "expected HTTP 200, got 401: {\"statusCode\":401,\"code\":\"AUTH_REQUIRED\",\"message\":\"Sign in required.\",\"requestId\":\"5b601663-c37b-49b5-9937-33d6f25f445a\"}"
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "homepage renders the storefront",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "booking page renders",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF availability proxies the tenant",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF booking lookup works and wrong email 404s",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF rejects malformed JSON",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF rejects invalid booking payloads",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF booking forwards to the API and surfaces provider failure",
+    "ok": true,
+    "detail": "BFF preserves idempotency semantics (410 on dead hold)"
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF booking rate limit kicks in after 5 attempts per IP",
+    "ok": true,
+    "detail": "400,400,400,400,400,429"
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF login sets hardened auth cookies",
+    "ok": true,
+    "detail": "cf_access, cf_refresh, cf_bakery"
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF refresh rotates cookies",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "BFF logout revokes the session",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "unauthenticated /admin redirects to login",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "BFF & UI",
+    "name": "booking responses are not cached",
+    "ok": true,
+    "detail": ""
+  }
+]
