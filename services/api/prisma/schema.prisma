@@ -1,0 +1,376 @@
+// Prisma schema for CakeFlow — one bakery per deployment (tenant), shared MySQL schema.
+// Every tenant-owned row carries `bakeryId`; repositories must never query without it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  STAFF
+  CUSTOMER
+}
+
+enum OrderStatus {
+  HELD // slot reserved, awaiting Stripe confirmation (short TTL)
+  PENDING_PAYMENT // kept for PSP "processing" states
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELLED
+}
+
+enum PaymentKind {
+  DEPOSIT
+  BALANCE
+  REFUND
+}
+
+enum DepositType {
+  FLAT
+  PERCENTAGE
+}
+
+enum SlotStatus {
+  OPEN
+  CLOSED
+}
+
+enum FulfillmentType {
+  PICKUP
+}
+
+enum OutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum OrderEventType {
+  CREATED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  CONFIRMED
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_BAKER
+  EXPIRED
+  COMPLETED
+  DEPOSIT_REFUNDED
+}
+
+enum ActorType {
+  CUSTOMER
+  BAKER
+  SYSTEM
+  STRIPE
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tenant root
+// ─────────────────────────────────────────────────────────────
+
+model Bakery {
+  id           String  @id @default(cuid())
+  slug         String  @unique @db.VarChar(63)
+  customDomain String? @unique @db.VarChar(253)
+  name         String  @db.VarChar(120)
+  legalName    String? @db.VarChar(160)
+  email        String  @db.VarChar(254)
+  phone        String? @db.VarChar(32)
+  timezone     String  @default("Australia/Melbourne") @db.VarChar(64)
+  currency     String  @default("AUD") @db.Char(3)
+
+  // Storefront / branding
+  logoUrl      String? @db.VarChar(2048)
+  heroImageUrl String? @db.VarChar(2048)
+  brandColor   String  @default("#C084A0") @db.Char(7)
+  about        String? @db.Text
+  addressLine  String? @db.VarChar(200)
+  suburb       String? @db.VarChar(100)
+  postcode     String? @db.VarChar(10)
+
+  // Stripe Connect (destination charges)
+  stripeAccountId     String? @unique @db.VarChar(255)
+  stripeChargesEnabled Boolean @default(false)
+
+  // Deposit policy
+  depositType       DepositType @default(FLAT)
+  depositValue      Int         @default(2000) // FLAT = cents, PERCENTAGE = basis points (2500 = 25%)
+  depositRefundable Boolean     @default(true)
+  refundWindowHours Int         @default(48)
+  holdMinutes       Int         @default(15)
+  leadTimeHours     Int         @default(48)
+  maxAdvanceDays    Int         @default(90)
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users     User[]
+  cakes     Cake[]
+  slots     Slot[]
+  orders    Order[]
+  payments  Payment[]
+  outbox    EmailOutbox[]
+  events    OrderEvent[]
+
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Identity
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  bakeryId     String
+  email        String    @db.VarChar(254)
+  name         String    @db.VarChar(120)
+  phone        String?   @db.VarChar(32)
+  passwordHash String?   @db.VarChar(255) // null for guest/customer accounts
+  role         UserRole  @default(CUSTOMER)
+  isActive     Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  bakery   Bakery    @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  orders   Order[]   @relation("CustomerOrders")
+  createdOrders Order[] @relation("CreatedByStaff")
+
+  @@unique([bakeryId, email])
+  @@index([bakeryId, role, isActive])
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique @db.VarChar(64) // sha256 hex
+  userAgent        String?   @db.VarChar(512)
+  ipAddress        String?   @db.VarChar(64)
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Catalog — cakes are single SKUs (no modifier engine)
+// ─────────────────────────────────────────────────────────────
+
+model Cake {
+  id           String  @id @default(cuid())
+  bakeryId     String
+  slug         String  @db.VarChar(120)
+  name         String  @db.VarChar(160) // e.g. "Vanilla Bean Celebration"
+  description  String? @db.Text
+  flavour      String  @db.VarChar(120)
+  sizeLabel    String  @db.VarChar(40) // e.g. "30cm"
+  servings     Int     @default(1)
+  priceCents   Int
+  imageUrl     String? @db.VarChar(2048)
+  allergens    Json? // string[]
+  leadTimeHours Int?   // overrides bakery default when set
+  isActive     Boolean @default(true)
+  sortOrder    Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bakery Bakery  @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([bakeryId, slug])
+  @@index([bakeryId, isActive, sortOrder])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Capacity — one row per pickup window
+// ─────────────────────────────────────────────────────────────
+
+model Slot {
+  id          String     @id @default(cuid())
+  bakeryId    String
+  startsAt    DateTime
+  endsAt      DateTime
+  serviceDate DateTime   @db.Date // bakery-local date, used for grouping/constraints
+  capacity    Int        @default(1)
+  bookedCount Int        @default(0)
+  status      SlotStatus @default(OPEN)
+  priceOverrideCents Int? // optional time-based pricing
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  bakery Bakery  @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([bakeryId, startsAt])
+  @@index([bakeryId, serviceDate, status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Orders (appointments) + payment ledger
+// ─────────────────────────────────────────────────────────────
+
+model Order {
+  id          String @id @default(cuid())
+  reference   String @unique @db.VarChar(24) // human-readable, e.g. CF-8K2M4Q
+  bakeryId    String
+  customerId  String
+  cakeId      String
+  slotId      String
+  createdById String?
+
+  status          OrderStatus     @default(HELD)
+  fulfillmentType FulfillmentType @default(PICKUP)
+
+  // Immutable customer snapshot (orders must survive profile edits)
+  customerName  String @db.VarChar(120)
+  customerEmail String @db.VarChar(254)
+  customerPhone String @db.VarChar(32)
+  notes         String? @db.VarChar(500)
+
+  totalCents      Int
+  depositCents    Int
+  balanceDueCents Int
+  currency        String @db.Char(3)
+
+  depositRefundable   Boolean
+  depositRefundedAt   DateTime?
+  refundWindowHours   Int
+
+  holdExpiresAt DateTime
+  confirmedAt   DateTime?
+  cancelledAt   DateTime?
+  cancellationReason String? @db.VarChar(500)
+  idempotencyKey String @db.VarChar(128)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bakery    Bakery     @relation(fields: [bakeryId], references: [id], onDelete: Restrict)
+  customer  User       @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy User?      @relation("CreatedByStaff", fields: [createdById], references: [id], onDelete: SetNull)
+  cake      Cake       @relation(fields: [cakeId], references: [id], onDelete: Restrict)
+  slot      Slot       @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  payments  Payment[]
+  events    OrderEvent[]
+  outbox    EmailOutbox[]
+
+  @@unique([bakeryId, idempotencyKey])
+  @@index([bakeryId, status, createdAt])
+  @@index([bakeryId, slotId, status])
+  @@index([bakeryId, customerEmail])
+  @@index([holdExpiresAt, status])
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  bakeryId  String
+  orderId   String
+  kind      PaymentKind
+  status    PaymentStatus @default(REQUIRES_PAYMENT)
+  amountCents Int
+  currency  String @db.Char(3)
+
+  stripePaymentIntentId String? @unique @db.VarChar(255)
+  stripeChargeId        String? @db.VarChar(255)
+  stripeRefundId        String? @db.VarChar(255)
+  stripeEventId         String? @db.VarChar(255)
+
+  refundable     Boolean  @default(true)
+  refundedCents  Int      @default(0)
+  failureCode    String?  @db.VarChar(120)
+  failureMessage String?  @db.VarChar(500)
+  refundedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Restrict)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([bakeryId, status])
+  @@index([orderId])
+}
+
+// Webhook idempotency. Global table: Stripe events are not tenant-scoped.
+model StripeEvent {
+  id            String   @id @default(cuid())
+  stripeEventId String   @unique @db.VarChar(255)
+  type          String   @db.VarChar(120)
+  payload       Json
+  processedAt   DateTime?
+  error         String?  @db.Text
+  attempts      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([processedAt, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Audit + reliable email (transactional outbox)
+// ─────────────────────────────────────────────────────────────
+
+model OrderEvent {
+  id       String         @id @default(cuid())
+  bakeryId String
+  orderId  String
+  type     OrderEventType
+  actorType ActorType     @default(SYSTEM)
+  actorId  String?        @db.VarChar(64)
+  metadata Json?
+  createdAt DateTime      @default(now())
+
+  bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([bakeryId, type, createdAt])
+}
+
+model EmailOutbox {
+  id           String       @id @default(cuid())
+  bakeryId     String
+  orderId      String?
+  toEmail      String       @db.VarChar(254)
+  template     String       @db.VarChar(64) // BOOKING_CONFIRMED | BOOKING_CANCELLED | ...
+  payload      Json
+  status       OutboxStatus @default(PENDING)
+  attempts     Int          @default(0)
+  nextAttemptAt DateTime    @default(now())
+  sentAt       DateTime?
+  lastError    String?      @db.VarChar(1000)
+  createdAt    DateTime     @default(now())
+
+  bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt])
+  @@index([bakeryId, createdAt])
+}
