@@ -4,6 +4,8 @@ export interface Storefront {
   id: string;
   slug: string;
   name: string;
+  legalName?: string | null;
+  email?: string;
   logoUrl: string | null;
   brandColor: string;
   heroImageUrl: string | null;

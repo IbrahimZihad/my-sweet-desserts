@@ -53,6 +53,23 @@ export const DepositType = {
 export type DepositType = (typeof DepositType)[keyof typeof DepositType];
 
 /* ────────────────────────────────────────────────────────────
+ * Privacy / GDPR
+ *
+ * The legal notice text lives in the web app. This version string is pinned
+ * onto every order at the moment consent is captured, so a later policy update
+ * never rewrites the consent history.
+ * ──────────────────────────────────────────────────────────── */
+
+export const PRIVACY_POLICY_VERSION = "2026-11-13";
+export const PRIVACY_POLICY_EFFECTIVE_DATE = "13 November 2026";
+
+export const PrivacyRequestType = {
+  EXPORT: "EXPORT",
+  ERASURE: "ERASURE",
+} as const;
+export type PrivacyRequestType = (typeof PrivacyRequestType)[keyof typeof PrivacyRequestType];
+
+/* ────────────────────────────────────────────────────────────
  * Primitives
  * ──────────────────────────────────────────────────────────── */
 
@@ -110,6 +127,8 @@ export interface PublicBakeryDto {
   id: string;
   slug: string;
   name: string;
+  legalName?: string | null;
+  email?: string;
   logoUrl: string | null;
   brandColor: string;
   heroImageUrl: string | null;
@@ -147,14 +166,31 @@ export const bookingCustomerSchema = z.object({
   phone: phoneSchema,
 });
 
-export const createBookingSchema = z.object({
-  cakeId: idSchema,
-  slotId: idSchema,
-  customer: bookingCustomerSchema,
-  notes: z.string().trim().max(500).optional(),
-  /** Server recomputes the deposit; the client only acknowledges the policy. */
-  acceptDepositPolicy: z.literal(true),
-});
+export const createBookingSchema = z
+  .object({
+    cakeId: idSchema,
+    slotId: idSchema,
+    customer: bookingCustomerSchema,
+    notes: z.string().trim().max(500).optional(),
+    /** Server recomputes the deposit; the client only acknowledges the policy. */
+    acceptDepositPolicy: z.literal(true),
+    /** GDPR Art. 13: the privacy notice must be acknowledged before collection. */
+    acceptPrivacyPolicy: z.literal(true),
+    /**
+     * GDPR Art. 9(2)(a): explicit consent is required when free-text notes may
+     * contain health or allergy information (special-category data).
+     */
+    healthDataConsent: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.notes && value.notes.length > 0 && value.healthDataConsent !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["healthDataConsent"],
+        message: "Explicit consent is required to store notes that may contain health information.",
+      });
+    }
+  });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
@@ -185,6 +221,97 @@ export interface BookingSummaryDto {
   customerName: string;
   customerEmail: string;
   createdAt: string;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Data subject requests (GDPR Art. 15, 17, 20)
+ * ──────────────────────────────────────────────────────────── */
+
+export const privacyRequestSchema = z.object({
+  email: emailSchema,
+  reference: z.string().trim().min(6).max(24),
+});
+
+export type PrivacyRequestInput = z.infer<typeof privacyRequestSchema>;
+
+export const privacyErasureSchema = privacyRequestSchema.extend({
+  /** Irreversible action: the customer must tick an explicit confirmation. */
+  confirm: z.literal(true),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export type PrivacyErasureInput = z.infer<typeof privacyErasureSchema>;
+
+export interface PrivacyOrderExportDto {
+  reference: string;
+  status: OrderStatus;
+  cakeName: string;
+  slotStartsAt: string;
+  totalCents: number;
+  depositCents: number;
+  currency: string;
+  createdAt: string;
+  privacyPolicyVersion: string | null;
+  privacyAcceptedAt: string | null;
+  healthDataConsentAt: string | null;
+}
+
+export interface PrivacyExportResponse {
+  exportedAt: string;
+  policyVersion: string;
+  bakery: { name: string; email: string };
+  subject: { name: string; email: string; phone: string | null };
+  orders: PrivacyOrderExportDto[];
+  payments: Array<{
+    orderReference: string;
+    kind: PaymentKind;
+    status: PaymentStatus;
+    amountCents: number;
+    refundedCents: number;
+    currency: string;
+    createdAt: string;
+  }>;
+  /** Plain-language note about the legal basis and the rights that remain. */
+  notice: string;
+}
+
+export interface PrivacyErasureResponse {
+  erased: true;
+  confirmationId: string;
+  anonymisedOrders: number;
+  requestedAt: string;
+  /** What was retained, and why (financial/accounting obligation). */
+  retained: string;
+}
+
+export interface PrivacyRequestSummaryDto {
+  id: string;
+  type: PrivacyRequestType;
+  status: "COMPLETED" | "REJECTED";
+  reference: string;
+  subjectEmailHashPrefix: string;
+  requestedAt: string;
+  completedAt: string | null;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Admin: live booking announcements (read aloud in the dashboard)
+ * ──────────────────────────────────────────────────────────── */
+
+export interface BookingAnnouncementDto {
+  id: string;
+  reference: string;
+  customerName: string;
+  cakeName: string;
+  slotStartsAt: string;
+  status: OrderStatus;
+  createdAt: string;
+}
+
+export interface BookingAnnouncementsResponse {
+  announcements: BookingAnnouncementDto[];
+  /** Server clock, used as the next `since` cursor (minus a small overlap). */
+  serverTime: string;
 }
 
 /* ────────────────────────────────────────────────────────────

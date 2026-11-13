@@ -19,10 +19,13 @@ import {
 } from "@prisma/client";
 import { Cron } from "@nestjs/schedule";
 import { randomInt } from "node:crypto";
-import type {
-  BookingSummaryDto,
-  CreateBookingInput,
-  CreateBookingResponse,
+import {
+  PRIVACY_POLICY_VERSION,
+  type BookingAnnouncementDto,
+  type BookingAnnouncementsResponse,
+  type BookingSummaryDto,
+  type CreateBookingInput,
+  type CreateBookingResponse,
 } from "@cakeflow/contracts";
 import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsService } from "../payments/payments.service";
@@ -142,6 +145,9 @@ export class BookingsService {
             refundWindowHours: bakery.refundWindowHours,
             holdExpiresAt: new Date(now.getTime() + bakery.holdMinutes * 60_000),
             idempotencyKey,
+            privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+            privacyAcceptedAt: now,
+            healthDataConsentAt: input.healthDataConsent ? now : null,
           },
         });
 
@@ -366,6 +372,43 @@ export class BookingsService {
         balanceDueCents: row.balanceDueCents,
       })),
     };
+  }
+
+  /**
+   * New bookings since a cursor, for the dashboard's spoken announcements.
+   * Scoped to the tenant and capped so a stale cursor cannot stream PII.
+   */
+  async listAnnouncements(bakeryId: string, since: Date): Promise<BookingAnnouncementsResponse> {
+    const now = new Date();
+    const floor = new Date(now.getTime() - 15 * 60_000);
+    const cursor = since.getTime() > floor.getTime() ? since : floor;
+
+    const rows = await this.prisma.order.findMany({
+      where: { bakeryId, createdAt: { gt: cursor } },
+      orderBy: { createdAt: "asc" },
+      take: 25,
+      select: {
+        id: true,
+        reference: true,
+        customerName: true,
+        status: true,
+        createdAt: true,
+        cake: { select: { name: true } },
+        slot: { select: { startsAt: true } },
+      },
+    });
+
+    const announcements: BookingAnnouncementDto[] = rows.map((row) => ({
+      id: row.id,
+      reference: row.reference,
+      customerName: row.customerName,
+      cakeName: row.cake.name,
+      slotStartsAt: row.slot.startsAt.toISOString(),
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    }));
+
+    return { announcements, serverTime: now.toISOString() };
   }
 
   /** Releases capacity for holds that were never paid. Runs every minute. */

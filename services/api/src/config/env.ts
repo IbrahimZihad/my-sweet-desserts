@@ -19,6 +19,9 @@ const envSchema = z.object({
 
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("CakeFlow <bookings@example.com>"),
+
+  // Privacy retention job (GDPR Art. 5(1)(e))
+  STRIPE_EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

@@ -77,6 +77,18 @@ enum OrderEventType {
   EXPIRED
   COMPLETED
   DEPOSIT_REFUNDED
+  DATA_EXPORTED
+  DATA_ERASED
+}
+
+enum PrivacyRequestType {
+  EXPORT
+  ERASURE
+}
+
+enum PrivacyRequestStatus {
+  COMPLETED
+  REJECTED
 }
 
 enum ActorType {
@@ -123,6 +135,10 @@ model Bakery {
   leadTimeHours     Int         @default(48)
   maxAdvanceDays    Int         @default(90)
 
+  // Privacy / storage limitation (GDPR Art. 5(1)(e))
+  /** Days after which closed orders are anonymised by the retention job. */
+  piiRetentionDays  Int         @default(730)
+
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -134,6 +150,7 @@ model Bakery {
   payments  Payment[]
   outbox    EmailOutbox[]
   events    OrderEvent[]
+  privacyRequests PrivacyRequest[]
 
   @@index([isActive])
 }
@@ -272,6 +289,12 @@ model Order {
   cancellationReason String? @db.VarChar(500)
   idempotencyKey String @db.VarChar(128)
 
+  // Consent + privacy lifecycle (GDPR Art. 7, 9, 13, 17)
+  privacyPolicyVersion String?  @db.VarChar(20)
+  privacyAcceptedAt    DateTime?
+  healthDataConsentAt  DateTime?
+  anonymisedAt         DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -283,12 +306,14 @@ model Order {
   payments  Payment[]
   events    OrderEvent[]
   outbox    EmailOutbox[]
+  privacyRequests PrivacyRequest[]
 
   @@unique([bakeryId, idempotencyKey])
   @@index([bakeryId, status, createdAt])
   @@index([bakeryId, slotId, status])
   @@index([bakeryId, customerEmail])
   @@index([holdExpiresAt, status])
+  @@index([anonymisedAt, createdAt])
 }
 
 model Payment {
@@ -376,4 +401,25 @@ model EmailOutbox {
 
   @@index([status, nextAttemptAt])
   @@index([bakeryId, createdAt])
+}
+
+/// Accountability record for GDPR data-subject requests. The customer's email
+/// is stored only as a SHA-256 hash so the audit log itself is not PII.
+model PrivacyRequest {
+  id          String               @id @default(cuid())
+  bakeryId    String
+  type        PrivacyRequestType
+  status      PrivacyRequestStatus @default(COMPLETED)
+  reference   String               @db.VarChar(24)
+  orderId     String?
+  subjectEmailHash String          @db.VarChar(64)
+  reason      String?              @db.VarChar(500)
+  requestedAt DateTime             @default(now())
+  completedAt DateTime?
+
+  bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([bakeryId, requestedAt])
+  @@index([bakeryId, type, requestedAt])
 }

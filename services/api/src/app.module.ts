@@ -19,6 +19,7 @@ import { HealthController } from "./health/health.controller";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { PrivacyModule } from "./privacy/privacy.module";
 import { SlotsModule } from "./slots/slots.module";
 
 @Module({
@@ -34,6 +35,7 @@ import { SlotsModule } from "./slots/slots.module";
     BookingsModule,
     PaymentsModule,
     NotificationsModule,
+    PrivacyModule,
   ],
   controllers: [HealthController],
   providers: [

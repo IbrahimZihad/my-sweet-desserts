@@ -33,6 +33,8 @@ export class StorefrontController {
         id: true,
         slug: true,
         name: true,
+        legalName: true,
+        email: true,
         logoUrl: true,
         brandColor: true,
         heroImageUrl: true,

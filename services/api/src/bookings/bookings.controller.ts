@@ -39,6 +39,9 @@ const adminCancelSchema = z.object({
   reason: z.string().trim().max(500).optional(),
   refund: z.boolean().optional(),
 });
+const announcementsSchema = z.object({
+  since: z.string().datetime({ offset: true }).optional(),
+});
 
 @Controller("bookings")
 export class BookingsController {
@@ -90,6 +93,19 @@ export class AdminBookingsController {
     query: z.infer<typeof adminListSchema>,
   ) {
     return this.bookings.listAdmin(bakeryId, query);
+  }
+
+  /**
+   * Polled by the dashboard to announce new bookings aloud. `since` is a
+   * cursor from the previous response's `serverTime`.
+   */
+  @Get("announcements")
+  announcements(
+    @TenantId() bakeryId: string,
+    @Query(new ZodValidationPipe(announcementsSchema)) query: z.infer<typeof announcementsSchema>,
+  ) {
+    const since = query.since ? new Date(query.since) : new Date(Date.now() - 30_000);
+    return this.bookings.listAnnouncements(bakeryId, since);
   }
 
   @Post(":id/cancel")
