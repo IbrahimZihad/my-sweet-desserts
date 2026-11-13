@@ -38,6 +38,8 @@ export function BookingWizard({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", notes: "" });
   const [accepted, setAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [healthConsent, setHealthConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [booking, setBooking] = useState<CreateBookingResponse | null>(null);
