@@ -169,11 +169,22 @@ export default async function HomePage() {
       </section>
 
       <footer className="border-t border-line py-10">
-        <div className="container-page flex flex-col gap-2 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="container-page flex flex-col gap-3 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>
             © {new Date().getFullYear()} {store.name} · {store.addressLine}, {store.suburb} {store.postcode}
           </p>
-          <p>Deposits secured by Stripe · Pickup only</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link href="/privacy" className="underline-offset-4 hover:text-ink hover:underline">
+              Privacy
+            </Link>
+            <Link href="/cookies" className="underline-offset-4 hover:text-ink hover:underline">
+              Cookies
+            </Link>
+            <Link href="/privacy/request" className="underline-offset-4 hover:text-ink hover:underline">
+              Your data
+            </Link>
+            <span>Deposits secured by Stripe · Pickup only</span>
+          </div>
         </div>
       </footer>
     </main>

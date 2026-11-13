@@ -378,25 +378,70 @@ export function BookingWizard({
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               placeholder="Name on the cake, allergy notes, pickup running late…"
             />
+            <p className="mt-1 text-xs text-muted">
+              Share only what the bakery needs. Allergy or health details are sensitive data and need your
+              explicit consent below.
+            </p>
           </div>
         </div>
 
-        <label className="mt-5 flex items-start gap-3 rounded-xl bg-cream p-4 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-ink"
-            checked={accepted}
-            onChange={(event) => setAccepted(event.target.checked)}
-          />
-          <span className="text-muted">
-            I understand this booking is held by a{" "}
-            <strong className="text-ink">{formatMoney(depositCents, store.currency)} deposit</strong>
-            {store.depositRefundable
-              ? `, refundable until ${store.refundWindowHours}h before pickup.`
-              : ", which is non-refundable."}{" "}
-            The balance is paid at pickup.
-          </span>
-        </label>
+        <div className="mt-5 space-y-3">
+          <label className="flex items-start gap-3 rounded-xl bg-cream p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-ink"
+              checked={accepted}
+              onChange={(event) => setAccepted(event.target.checked)}
+            />
+            <span className="text-muted">
+              I understand this booking is held by a{" "}
+              <strong className="text-ink">{formatMoney(depositCents, store.currency)} deposit</strong>
+              {store.depositRefundable
+                ? `, refundable until ${store.refundWindowHours}h before pickup.`
+                : ", which is non-refundable."}{" "}
+              The balance is paid at pickup.
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl bg-cream p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-ink"
+              checked={privacyAccepted}
+              onChange={(event) => setPrivacyAccepted(event.target.checked)}
+              required
+            />
+            <span className="text-muted">
+              I have read and accept the{" "}
+              <Link href="/privacy" target="_blank" className="text-ink underline underline-offset-4">
+                privacy notice
+              </Link>{" "}
+              and{" "}
+              <Link href="/cookies" target="_blank" className="text-ink underline underline-offset-4">
+                cookie policy
+              </Link>
+              . I understand how my data is used to manage this booking and that I can export or erase it
+              at any time.
+            </span>
+          </label>
+
+          {form.notes.trim() ? (
+            <label className="flex items-start gap-3 rounded-xl bg-rose-50 p-4 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-ink"
+                checked={healthConsent}
+                onChange={(event) => setHealthConsent(event.target.checked)}
+                required
+              />
+              <span className="text-muted">
+                I give explicit consent to {store.name} processing the notes I entered, including any
+                allergy or health information, so the bakery can prepare and hand over my order safely. I
+                understand I can withdraw this consent by asking for the notes to be erased.
+              </span>
+            </label>
+          ) : null}
+        </div>
 
         {error ? (
           <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
