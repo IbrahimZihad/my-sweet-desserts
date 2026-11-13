@@ -119,6 +119,14 @@ export function BookingWizard({
         setError("Please accept the deposit policy to continue.");
         return;
       }
+      if (!privacyAccepted) {
+        setError("Please accept the privacy notice to continue.");
+        return;
+      }
+      if (form.notes.trim() && !healthConsent) {
+        setError("Please give explicit consent to store the notes you entered, or remove them.");
+        return;
+      }
 
       setSubmitting(true);
       const key = idempotencyKey.current ?? (idempotencyKey.current = crypto.randomUUID());
@@ -139,6 +147,8 @@ export function BookingWizard({
             },
             notes: form.notes.trim() || undefined,
             acceptDepositPolicy: true,
+            acceptPrivacyPolicy: true,
+            healthDataConsent: form.notes.trim() ? healthConsent : false,
           }),
         });
 
@@ -172,7 +182,7 @@ export function BookingWizard({
         setSubmitting(false);
       }
     },
-    [accepted, cakeId, form, slotId, refreshSummary],
+    [accepted, cakeId, form, healthConsent, privacyAccepted, slotId, refreshSummary],
   );
 
   useEffect(() => {
