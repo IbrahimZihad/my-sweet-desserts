@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const CONSENT_COOKIE = "cf_consent";
@@ -21,6 +22,7 @@ interface ConsentChoice {
  * the cookie policy page.
  */
 export function CookieConsent() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -33,7 +35,10 @@ export function CookieConsent() {
     return () => window.removeEventListener("cf:cookie-settings", open);
   }, []);
 
-  if (!mounted || !visible) return null;
+  // The admin dashboard already uses only essential auth cookies. Hiding the
+  // banner there keeps it from covering the live booking announcer; the full
+  // policy remains available at /cookies and from the admin Privacy page.
+  if (!mounted || !visible || pathname?.startsWith("/admin")) return null;
 
   function acceptEssential() {
     const choice: ConsentChoice = {
@@ -42,7 +47,8 @@ export function CookieConsent() {
       analytics: false,
       ts: new Date().toISOString(),
     };
-    document.cookie = `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(choice))}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(choice))}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
     setVisible(false);
   }
 

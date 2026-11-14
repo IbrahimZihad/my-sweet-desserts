@@ -22,7 +22,10 @@ export function NewBookingAnnouncer({ timezone }: { timezone: string }) {
 
   useEffect(() => {
     setMounted(true);
-    const available = typeof window !== "undefined" && "speechSynthesis" in window;
+    const available =
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      "SpeechSynthesisUtterance" in window;
     setSupported(available);
     if (!available) return;
     if (window.localStorage.getItem(STORAGE_KEY) === "1") {

@@ -60,8 +60,8 @@ export type DepositType = (typeof DepositType)[keyof typeof DepositType];
  * never rewrites the consent history.
  * ──────────────────────────────────────────────────────────── */
 
-export const PRIVACY_POLICY_VERSION = "2026-11-13";
-export const PRIVACY_POLICY_EFFECTIVE_DATE = "13 November 2026";
+export const PRIVACY_POLICY_VERSION = "2026-11-14";
+export const PRIVACY_POLICY_EFFECTIVE_DATE = "14 November 2026";
 
 export const PrivacyRequestType = {
   EXPORT: "EXPORT",
@@ -380,6 +380,7 @@ export const updateBakerySchema = z.object({
   refundWindowHours: z.number().int().min(0).max(720).optional(),
   holdMinutes: z.number().int().min(5).max(60).optional(),
   leadTimeHours: z.number().int().min(0).max(720).optional(),
+  piiRetentionDays: z.number().int().min(30).max(3650).optional(),
 });
 
 export type UpdateBakeryInput = z.infer<typeof updateBakerySchema>;

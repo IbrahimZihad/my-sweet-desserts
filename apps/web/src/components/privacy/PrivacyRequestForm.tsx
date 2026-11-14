@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type {
   ApiErrorBody,
-  PrivacyEraseResponse,
+  PrivacyErasureResponse,
   PrivacyExportResponse,
 } from "@cakeflow/contracts";
 
@@ -16,7 +16,7 @@ export function PrivacyRequestForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
-  const [erased, setErased] = useState<PrivacyEraseResponse | null>(null);
+  const [erased, setErased] = useState<PrivacyErasureResponse | null>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -59,7 +59,7 @@ export function PrivacyRequestForm() {
         URL.revokeObjectURL(url);
         setExported(true);
       } else {
-        setErased(payload as PrivacyEraseResponse);
+        setErased(payload as PrivacyErasureResponse);
         setConfirm(false);
       }
     } catch (caught) {

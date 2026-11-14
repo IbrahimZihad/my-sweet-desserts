@@ -45,8 +45,8 @@ export default async function AdminPrivacyPage() {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <InfoCard
           label="Retention window"
-          value="730 days"
-          hint="Closed bookings are anonymised after this period."
+          value="Default 730 days"
+          hint="Closed bookings are anonymised after the bakery's configured period."
         />
         <InfoCard
           label="Erasure method"

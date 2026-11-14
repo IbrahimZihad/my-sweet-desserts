@@ -153,32 +153,35 @@ export class PrivacyService {
       orderBy: { createdAt: "asc" },
     });
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const request = await tx.privacyRequest.create({
-        data: {
-          bakeryId,
-          type: PrivacyRequestType.ERASURE,
-          status: PrivacyRequestStatus.COMPLETED,
-          reference: verified.reference,
-          orderId: verified.id,
-          subjectEmailHash: hashEmail(input.email),
-          reason: input.reason ?? null,
-          requestedAt: now,
-          completedAt: now,
-        },
-        select: { id: true },
-      });
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const request = await tx.privacyRequest.create({
+          data: {
+            bakeryId,
+            type: PrivacyRequestType.ERASURE,
+            status: PrivacyRequestStatus.COMPLETED,
+            reference: verified.reference,
+            orderId: verified.id,
+            subjectEmailHash: hashEmail(input.email),
+            reason: input.reason ?? null,
+            requestedAt: now,
+            completedAt: now,
+          },
+          select: { id: true },
+        });
 
-      let anonymised = 0;
-      for (const order of orders) {
-        if (order.anonymisedAt) continue;
-        await anonymiseOrder(tx, order, request.id, now);
-        anonymised += 1;
-      }
+        let anonymised = 0;
+        for (const order of orders) {
+          if (order.anonymisedAt) continue;
+          await anonymiseOrder(tx, order, request.id, now);
+          anonymised += 1;
+        }
 
-      await anonymiseCustomer(tx, bakeryId, verified.customerId, now);
-      return { requestId: request.id, anonymised };
-    });
+        await anonymiseCustomer(tx, bakeryId, verified.customerId, now);
+        return { requestId: request.id, anonymised };
+      },
+      { timeout: 15_000 },
+    );
 
     return {
       erased: true,
@@ -347,6 +350,22 @@ async function anonymiseOrder(
   // The outbox is a delivery queue, not a financial record. Remove queued and
   // sent emails so the address is not retained beyond the erasure request.
   await tx.emailOutbox.deleteMany({ where: { orderId: order.id } });
+
+  // Stripe event payloads can embed the order metadata. Redact them now rather
+  // than waiting for the 30-day retention window.
+  await tx.$executeRaw`
+    UPDATE StripeEvent
+       SET payload = JSON_OBJECT('redacted', true, 'reason', 'erasure')
+     WHERE JSON_UNQUOTE(JSON_EXTRACT(payload, '$.data.object.metadata.orderId')) = ${order.id}`;
+
+  // Admin cancellation reasons are free text and can contain PII.
+  await tx.orderEvent.updateMany({
+    where: {
+      orderId: order.id,
+      type: { in: ["CANCELLED_BY_BAKER", "CANCELLED_BY_CUSTOMER"] },
+    },
+    data: { metadata: { redacted: true } as Prisma.InputJsonValue },
+  });
 
   await tx.orderEvent.create({
     data: {

@@ -104,12 +104,26 @@ Data minimisation:
   touches CakeFlow servers; Stripe Elements posts directly to Stripe.
 - Stripe customer IDs are not stored; only PaymentIntent/Charge/Refund IDs.
 
+Implemented privacy controls (see `docs/GDPR.md`):
+
+- Privacy notice acknowledgement and policy version are captured on every
+  order. Notes require a separate explicit health-data consent (Art. 9).
+- Self-service export and erasure are available at `/privacy/request` and are
+  rate-limited on both the BFF and API.
+- Erasure anonymises name/email/phone/notes, deletes the email queue, deactivates
+  the customer and revokes sessions, while retaining the financial ledger.
+- `PrivacyRequest` records every export/erasure with a SHA-256 email hash only.
+- A nightly retention job anonymises closed bookings after
+  `Bakery.piiRetentionDays`, redacts Stripe payloads after 30 days and prunes
+  the outbox and expired sessions.
+- Essential-only cookie notice; no analytics or advertising cookies.
+
 Recommended production controls:
 
 - MySQL encryption at rest + TLS in transit.
 - Encrypt `Order.notes` and phone at the application layer if they may contain
-  health/allergy information (special-category data under Australian privacy
-  law). At minimum, restrict DB access and backups.
+  health/allergy information (special-category data under Australian and EU
+  law). Today they rely on database access controls.
 - Redact email/phone/notes from application logs. The API logs order IDs and
   Stripe event IDs, not payloads.
 - Retention: purge cancelled/expired orders and their PII after the accounting

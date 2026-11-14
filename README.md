@@ -51,6 +51,7 @@ marketplace, driver tracking, or a full e-commerce basket.
 │   └── contracts/                    # zod schemas + shared DTOs
 ├── docs/
 │   ├── ARCHITECTURE.md
+│   ├── GDPR.md
 │   └── SECURITY.md
 └── .env.example
 ```
@@ -183,6 +184,41 @@ The seeder refuses to run with `NODE_ENV=production` unless
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the state machine and
 [docs/SECURITY.md](docs/SECURITY.md) for the auth/tenant model.
+
+## Privacy and GDPR
+
+The booking flow captures an explicit privacy acknowledgement and, when notes
+are supplied, a separate explicit consent for any health/allergy information
+(GDPR Art. 9). The policy version, acknowledgement time and consent time are
+pinned on the order.
+
+| Surface | Purpose |
+| --- | --- |
+| `/privacy` | Art. 13/14 notice: controller, purposes, legal bases, recipients, transfers, retention, rights |
+| `/cookies` | Cookie table and a control to reopen the consent notice |
+| `/privacy/request` | Self-service export (Art. 15/20) and erasure (Art. 17) |
+| `/admin/privacy` | Owner-only audit log of data-subject requests |
+
+API endpoints: `POST /v1/privacy/export`, `POST /v1/privacy/erase`,
+`GET /v1/admin/privacy/requests` and
+`POST /v1/admin/privacy/retention/run`. The nightly retention job anonymises
+closed bookings after `Bakery.piiRetentionDays` (default 730), redacts Stripe
+webhook payloads and prunes the email queue. Erasure keeps the financial ledger
+(amounts, payment IDs, timestamps) but removes name, email, phone and notes.
+
+See [docs/GDPR.md](docs/GDPR.md) for the full data map, request procedure and
+launch checklist. Legal review of the published notice and DPAs is still
+required.
+
+## Live booking announcements
+
+The admin dashboard includes a speaker panel. Click **Enable announcements**
+once per device; the panel then polls
+`GET /api/admin/announcements` every 10 seconds and reads each new booking
+aloud through the browser's speech synthesis engine at full volume. The
+preference is stored locally; no audio leaves the browser and no extra
+notification provider is involved. A **Test voice** button checks the selected
+voice. Browsers require one user interaction before audio is allowed.
 
 ## Commands
 

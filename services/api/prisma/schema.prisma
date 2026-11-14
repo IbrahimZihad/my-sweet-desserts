@@ -136,7 +136,7 @@ model Bakery {
   maxAdvanceDays    Int         @default(90)
 
   // Privacy / storage limitation (GDPR Art. 5(1)(e))
-  /** Days after which closed orders are anonymised by the retention job. */
+  // Days after which closed orders are anonymised by the retention job.
   piiRetentionDays  Int         @default(730)
 
   isActive  Boolean   @default(true)
