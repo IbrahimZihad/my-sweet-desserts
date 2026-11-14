@@ -382,33 +382,50 @@ export class BookingsService {
     const now = new Date();
     const floor = new Date(now.getTime() - 15 * 60_000);
     const cursor = since.getTime() > floor.getTime() ? since : floor;
+    const batchSize = 25;
 
-    const rows = await this.prisma.order.findMany({
-      where: { bakeryId, createdAt: { gt: cursor } },
-      orderBy: { createdAt: "asc" },
-      take: 25,
-      select: {
-        id: true,
-        reference: true,
-        customerName: true,
-        status: true,
-        createdAt: true,
-        cake: { select: { name: true } },
-        slot: { select: { startsAt: true } },
-      },
-    });
+    const [bakery, rows] = await this.prisma.$transaction([
+      this.prisma.bakery.findUniqueOrThrow({
+        where: { id: bakeryId },
+        select: { timezone: true },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          bakeryId,
+          createdAt: { gt: cursor },
+          // Never read out an abandoned hold that already expired or a booking
+          // the customer cancelled, and never a record that has been erased.
+          status: { notIn: [OrderStatus.CANCELLED, OrderStatus.EXPIRED] },
+          anonymisedAt: null,
+        },
+        orderBy: { createdAt: "asc" },
+        take: batchSize + 1,
+        select: {
+          id: true,
+          reference: true,
+          customerName: true,
+          status: true,
+          createdAt: true,
+          cake: { select: { name: true } },
+          slot: { select: { startsAt: true } },
+        },
+      }),
+    ]);
 
-    const announcements: BookingAnnouncementDto[] = rows.map((row) => ({
+    const hasMore = rows.length > batchSize;
+    const page = hasMore ? rows.slice(0, batchSize) : rows;
+
+    const announcements: BookingAnnouncementDto[] = page.map((row) => ({
       id: row.id,
       reference: row.reference,
-      customerName: row.customerName,
+      customerFirstName: row.customerName.trim().split(/\s+/)[0] || "Guest",
       cakeName: row.cake.name,
       slotStartsAt: row.slot.startsAt.toISOString(),
       status: row.status,
       createdAt: row.createdAt.toISOString(),
     }));
 
-    return { announcements, serverTime: now.toISOString() };
+    return { announcements, serverTime: now.toISOString(), timezone: bakery.timezone, hasMore };
   }
 
   /** Releases capacity for holds that were never paid. Runs every minute. */

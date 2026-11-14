@@ -11,7 +11,7 @@ const POLL_MS = 10_000;
  * browser's speech synthesis engine. The preference is per device; the panel
  * must be opened once to satisfy the browser's audio-unlock rule.
  */
-export function NewBookingAnnouncer({ timezone }: { timezone: string }) {
+export function NewBookingAnnouncer() {
   const [mounted, setMounted] = useState(false);
   const [supported, setSupported] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -72,15 +72,24 @@ export function NewBookingAnnouncer({ timezone }: { timezone: string }) {
         const data = (await response.json()) as BookingAnnouncementsResponse;
         if (stopped) return;
 
+        const zone = data.timezone || "Australia/Melbourne";
+
         for (const item of data.announcements) {
           if (seenRef.current.has(item.id)) continue;
           seenRef.current.add(item.id);
-          speak(describe(item, timezone));
-          setLast(`${item.reference} · ${item.customerName}`);
+          speak(describe(item, zone));
+          setLast(`${item.reference} · ${item.customerFirstName}`);
         }
 
         // Overlap slightly to absorb clock skew; IDs are deduplicated above.
-        sinceRef.current = new Date(new Date(data.serverTime).getTime() - 2_000).toISOString();
+        // When the batch is full, keep the cursor at the last row instead of
+        // jumping to now, so no booking is skipped between polls.
+        const lastItem = data.announcements[data.announcements.length - 1];
+        const nextCursor =
+          data.hasMore && lastItem
+            ? new Date(new Date(lastItem.createdAt).getTime() - 2_000)
+            : new Date(new Date(data.serverTime).getTime() - 2_000);
+        sinceRef.current = nextCursor.toISOString();
         setError(null);
       } catch (caught) {
         if (!stopped) {
@@ -96,7 +105,7 @@ export function NewBookingAnnouncer({ timezone }: { timezone: string }) {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [enabled, supported, speak, timezone]);
+  }, [enabled, supported, speak]);
 
   function toggle() {
     if (!supported) return;
@@ -193,5 +202,5 @@ function describe(item: BookingAnnouncementDto, timezone: string): string {
     .join(" ");
   const kind = item.status === "CONFIRMED" ? "Confirmed booking" : "New booking";
 
-  return `${kind}. Reference ${spokenReference}. ${item.customerName}. ${item.cakeName}. Pickup ${when}.`;
+  return `${kind}. Reference ${spokenReference}. ${item.customerFirstName}. ${item.cakeName}. Pickup ${when}.`;
 }

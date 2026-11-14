@@ -101,6 +101,8 @@ export class PrivacyService {
         totalCents: order.totalCents,
         depositCents: order.depositCents,
         currency: order.currency,
+        notes: order.notes,
+        cancellationReason: order.cancellationReason,
         createdAt: order.createdAt.toISOString(),
         privacyPolicyVersion: order.privacyPolicyVersion,
         privacyAcceptedAt: order.privacyAcceptedAt?.toISOString() ?? null,

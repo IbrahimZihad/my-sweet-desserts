@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </header>
 
       <main className="container-page py-8">{children}</main>
-      <NewBookingAnnouncer timezone="Australia/Melbourne" />
+      <NewBookingAnnouncer />
       <SessionKeeper />
     </div>
   );

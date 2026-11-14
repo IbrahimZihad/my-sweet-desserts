@@ -229,7 +229,7 @@ export interface BookingSummaryDto {
 
 export const privacyRequestSchema = z.object({
   email: emailSchema,
-  reference: z.string().trim().min(6).max(24),
+  reference: z.string().trim().toUpperCase().min(6).max(24),
 });
 
 export type PrivacyRequestInput = z.infer<typeof privacyRequestSchema>;
@@ -250,6 +250,8 @@ export interface PrivacyOrderExportDto {
   totalCents: number;
   depositCents: number;
   currency: string;
+  notes: string | null;
+  cancellationReason: string | null;
   createdAt: string;
   privacyPolicyVersion: string | null;
   privacyAcceptedAt: string | null;
@@ -301,7 +303,11 @@ export interface PrivacyRequestSummaryDto {
 export interface BookingAnnouncementDto {
   id: string;
   reference: string;
-  customerName: string;
+  /**
+   * First name only. Announcements are spoken in a room that may contain other
+   * customers, so the API does not stream the full name to the speaker.
+   */
+  customerFirstName: string;
   cakeName: string;
   slotStartsAt: string;
   status: OrderStatus;
@@ -312,6 +318,10 @@ export interface BookingAnnouncementsResponse {
   announcements: BookingAnnouncementDto[];
   /** Server clock, used as the next `since` cursor (minus a small overlap). */
   serverTime: string;
+  /** Bakery IANA zone, so pickup times are spoken in local time. */
+  timezone: string;
+  /** More rows than one batch are waiting; keep the cursor at the last row. */
+  hasMore: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────

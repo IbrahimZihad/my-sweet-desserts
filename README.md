@@ -220,6 +220,11 @@ preference is stored locally; no audio leaves the browser and no extra
 notification provider is involved. A **Test voice** button checks the selected
 voice. Browsers require one user interaction before audio is allowed.
 
+Only the customer's first name is spoken, together with the booking reference,
+cake and pickup time, so a speaker in a public area does not broadcast the full
+customer record. The API also skips cancelled/expired holds and erased records,
+and caps each poll at 25 bookings with a resumable cursor.
+
 ## Commands
 
 | Command | Purpose |
