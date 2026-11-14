@@ -62,16 +62,25 @@ marketplace, driver tracking, or a full e-commerce basket.
 - pnpm 9 (`corepack enable`)
 - MySQL 8 running locally
 
-Create the database and application user once:
+Create the databases once:
 
 ```sql
 CREATE DATABASE cakeflow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE cakeflow_shadow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'cakeflow'@'localhost' IDENTIFIED BY 'change-me';
-GRANT ALL PRIVILEGES ON cakeflow.* TO 'cakeflow'@'localhost';
-GRANT ALL PRIVILEGES ON cakeflow_shadow.* TO 'cakeflow'@'localhost';
-FLUSH PRIVILEGES;
 ```
+
+The local MySQL account is `root`@`localhost` with no password and all
+privileges. The root `.env` connects to it on `localhost:3306`:
+
+```dotenv
+DATABASE_URL=mysql://root@localhost:3306/cakeflow
+SHADOW_DATABASE_URL=mysql://root@localhost:3306/cakeflow_shadow
+```
+
+This root-account configuration is for local development only. For production,
+use a dedicated MySQL account with a password and access only to the required
+database(s), and configure the connection URLs through the deployment
+environment.
 
 `cakeflow_shadow` is only used by `prisma migrate dev` to detect schema drift.
 `prisma migrate deploy` (production) never touches it, so the production user
@@ -79,26 +88,31 @@ only needs privileges on the application database.
 
 > **MySQL auth plugin:** Prisma supports `caching_sha2_password` (the MySQL 8
 > default) and `mysql_native_password`, but not the legacy `sha256_password`.
-> If a connection fails with `Unknown authentication plugin`, switch the user:
->
-> ```sql
-> ALTER USER 'cakeflow'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'change-me';
-> -- or, if the server's authentication policy requires it:
-> -- ALTER USER 'cakeflow'@'localhost' IDENTIFIED WITH mysql_native_password BY 'change-me';
-> FLUSH PRIVILEGES;
-> ```
+> If a connection fails with `Unknown authentication plugin`, make sure the
+> MySQL account used by the connection URL uses one of the supported plugins.
 
 ## Setup
 
 ```bash
 pnpm install
 pnpm --filter @cakeflow/contracts build
-cp .env.example .env            # set DATABASE_URL and secrets
+cp .env.example .env
 
 pnpm db:migrate                 # apply prisma/migrations
 pnpm db:seed                    # demo bakery, staff, cakes, slots, booking
 pnpm dev                        # API :4000, web :3000
 ```
+
+Before running the database commands, update the URLs in `.env` to match the
+local MySQL setup above:
+
+```dotenv
+DATABASE_URL=mysql://root@localhost:3306/cakeflow
+SHADOW_DATABASE_URL=mysql://root@localhost:3306/cakeflow_shadow
+```
+
+Also replace the placeholder application secrets in `.env`. Do not commit this
+file.
 
 Run these from the repository root. The root scripts load `.env` with
 `dotenv-cli` and pass it to Prisma and both dev servers; if you invoke a
