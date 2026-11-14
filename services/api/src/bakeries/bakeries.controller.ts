@@ -108,6 +108,7 @@ export class AdminBakeryController {
         holdMinutes: true,
         leadTimeHours: true,
         maxAdvanceDays: true,
+        piiRetentionDays: true,
         stripeAccountId: true,
         stripeChargesEnabled: true,
       },

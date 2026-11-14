@@ -7,6 +7,7 @@ const links = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/bookings", label: "Bookings" },
   { href: "/admin/slots", label: "Pickup slots" },
+  { href: "/admin/privacy", label: "Privacy" },
 ];
 
 export function AdminNav() {

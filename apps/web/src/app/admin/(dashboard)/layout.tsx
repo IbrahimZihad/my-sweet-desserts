@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { LogoutButton } from "@/components/admin/LogoutButton";
+import { NewBookingAnnouncer } from "@/components/admin/NewBookingAnnouncer";
 import { SessionKeeper } from "@/components/admin/SessionKeeper";
 import { getAdminSession } from "@/lib/auth";
 
@@ -32,6 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </header>
 
       <main className="container-page py-8">{children}</main>
+      <NewBookingAnnouncer timezone="Australia/Melbourne" />
       <SessionKeeper />
     </div>
   );
