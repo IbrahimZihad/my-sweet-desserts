@@ -31,7 +31,9 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { toJsonText } from "../common/json";
 
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const ACTIVE_HOLD_STATUSES: OrderStatus[] = [
+// Plain strings: status columns are TEXT in SQLite, so comparisons against
+// rows (typed `string` by Prisma) stay assignable. Values come from contracts.
+const ACTIVE_HOLD_STATUSES: string[] = [
   OrderStatus.HELD,
   OrderStatus.PENDING_PAYMENT,
   OrderStatus.CONFIRMED,
@@ -104,7 +106,7 @@ export class BookingsService {
     }
 
     const totalCents = slot.priceOverrideCents ?? cake.priceCents;
-    const depositCents = computeDeposit(totalCents, bakery.depositType, bakery.depositValue);
+    const depositCents = computeDeposit(totalCents, bakery.depositType as DepositType, bakery.depositValue);
 
     let created: { orderId: string; paymentId: string; reference: string };
     try {
@@ -222,7 +224,7 @@ export class BookingsService {
     return {
       orderId: order.id,
       reference: order.reference,
-      status: order.status,
+      status: order.status as OrderStatus,
       depositCents: order.depositCents,
       totalCents: order.totalCents,
       currency: order.currency,
@@ -498,7 +500,7 @@ export class BookingsService {
   private async resume(order: {
     id: string;
     reference: string;
-    status: OrderStatus;
+    status: string;
     depositCents: number;
     totalCents: number;
     currency: string;
@@ -516,7 +518,7 @@ export class BookingsService {
       return {
         orderId: order.id,
         reference: order.reference,
-        status: order.status,
+        status: order.status as OrderStatus,
         depositCents: order.depositCents,
         totalCents: order.totalCents,
         currency: order.currency,
@@ -543,7 +545,7 @@ export class BookingsService {
     return {
       orderId: order.id,
       reference: order.reference,
-      status: order.status,
+      status: order.status as OrderStatus,
       depositCents: order.depositCents,
       totalCents: order.totalCents,
       currency: order.currency,
