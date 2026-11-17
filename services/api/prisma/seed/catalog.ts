@@ -1,5 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 
+/** SQLite has no Json type: allergens are stored as JSON text. */
+const allergensJson = (allergens: string[]): string => JSON.stringify(allergens);
+
 interface SeedCake {
   slug: string;
   name: string;
@@ -55,7 +58,7 @@ export async function seedCakes(prisma: PrismaClient, bakeryId: string): Promise
         servings: cake.servings,
         priceCents: cake.priceCents,
         description: cake.description,
-        allergens: cake.allergens,
+        allergens: allergensJson(cake.allergens),
         sortOrder: index,
         isActive: true,
       },
@@ -68,7 +71,7 @@ export async function seedCakes(prisma: PrismaClient, bakeryId: string): Promise
         servings: cake.servings,
         priceCents: cake.priceCents,
         description: cake.description,
-        allergens: cake.allergens,
+        allergens: allergensJson(cake.allergens),
         sortOrder: index,
       },
     });

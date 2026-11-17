@@ -5,6 +5,12 @@ import { Public, Roles } from "../common/decorators/auth.decorators";
 import { TenantId } from "../common/decorators/request.decorators";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 import { PrismaService } from "../prisma/prisma.service";
+import { fromJsonText, toJsonText } from "../common/json";
+
+/** `Cake.allergens` is JSON text in SQLite; the API exposes a string[]. */
+function withAllergens<T extends { allergens: string | null }>(cake: T): Omit<T, "allergens"> & { allergens: string[] } {
+  return { ...cake, allergens: fromJsonText<string[]>(cake.allergens, []) };
+}
 
 const cakeInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -73,7 +79,7 @@ export class StorefrontController {
     if (!bakery?.isActive) {
       throw new NotFoundException({ code: "STORE_CLOSED", message: "Storefront is unavailable." });
     }
-    return bakery;
+    return { ...bakery, cakes: bakery.cakes.map(withAllergens) };
   }
 }
 
@@ -124,25 +130,28 @@ export class AdminBakeryController {
   }
 
   @Get("cakes")
-  listCakes(@TenantId() bakeryId: string) {
-    return this.prisma.cake.findMany({
+  async listCakes(@TenantId() bakeryId: string) {
+    const cakes = await this.prisma.cake.findMany({
       where: { bakeryId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
+    return cakes.map(withAllergens);
   }
 
   @Post("cakes")
-  createCake(
+  async createCake(
     @TenantId() bakeryId: string,
     @Body(new ZodValidationPipe(cakeInputSchema)) body: z.infer<typeof cakeInputSchema>,
   ) {
-    return this.prisma.cake.create({
+    const { allergens, ...rest } = body;
+    const cake = await this.prisma.cake.create({
       data: {
-        ...body,
+        ...rest,
         bakeryId,
-        allergens: body.allergens ?? [],
+        allergens: toJsonText(allergens ?? []),
       },
     });
+    return withAllergens(cake);
   }
 
   @Patch("cakes/:id")
@@ -153,7 +162,12 @@ export class AdminBakeryController {
   ) {
     const cake = await this.prisma.cake.findFirst({ where: { id, bakeryId }, select: { id: true } });
     if (!cake) throw new NotFoundException({ code: "CAKE_NOT_FOUND", message: "Cake not found." });
-    return this.prisma.cake.update({ where: { id: cake.id }, data: body });
+    const { allergens, ...rest } = body;
+    const updated = await this.prisma.cake.update({
+      where: { id: cake.id },
+      data: { ...rest, ...(allergens === undefined ? {} : { allergens: toJsonText(allergens) }) },
+    });
+    return withAllergens(updated);
   }
 }
 

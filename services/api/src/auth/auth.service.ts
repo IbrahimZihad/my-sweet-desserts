@@ -1,7 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
-import { UserRole } from "@prisma/client";
-import type { LoginInput } from "@cakeflow/contracts";
+import { UserRole, type LoginInput } from "@cakeflow/contracts";
 import { PrismaService } from "../prisma/prisma.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";

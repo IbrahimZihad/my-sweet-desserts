@@ -174,7 +174,7 @@ export class PaymentsService {
           orderId,
           type: "DEPOSIT_REFUNDED",
           actorType: "SYSTEM",
-          metadata: { refundId: refund.id, amountCents: payment.amountCents },
+          metadata: toJsonText({ refundId: refund.id, amountCents: payment.amountCents }),
         },
       });
     });
@@ -343,7 +343,7 @@ export class PaymentsService {
             orderId: order.id,
             type: "PAYMENT_SUCCEEDED",
             actorType: "STRIPE",
-            metadata: { paymentIntentId: intent.id, amountCents: payment.amountCents },
+            metadata: toJsonText({ paymentIntentId: intent.id, amountCents: payment.amountCents }),
           },
           {
             bakeryId: order.bakeryId,

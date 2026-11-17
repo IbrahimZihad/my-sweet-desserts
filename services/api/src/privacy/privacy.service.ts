@@ -5,11 +5,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { OrderStatus, Prisma, PrivacyRequestStatus, PrivacyRequestType, UserRole } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { createHash } from "node:crypto";
 import {
+  OrderStatus,
   PRIVACY_POLICY_VERSION,
+  PrivacyRequestStatus,
+  PrivacyRequestType,
+  UserRole,
   type PrivacyErasureInput,
   type PrivacyErasureResponse,
   type PrivacyExportResponse,
@@ -17,6 +21,7 @@ import {
   type PrivacyRequestSummaryDto,
 } from "@cakeflow/contracts";
 import { PrismaService } from "../prisma/prisma.service";
+import { toJsonText } from "../common/json";
 
 type Db = Prisma.TransactionClient;
 
@@ -287,7 +292,7 @@ export class PrivacyService {
     const stripeCutoff = new Date(now.getTime() - stripeDays * 86_400_000);
     const redacted = await this.prisma.stripeEvent.updateMany({
       where: { processedAt: { lt: stripeCutoff } },
-      data: { payload: { redacted: true, reason: "retention" } as Prisma.InputJsonValue },
+      data: { payload: toJsonText({ redacted: true, reason: "retention" }) },
     });
 
     const outboxCutoff = new Date(now.getTime() - 30 * 86_400_000);
@@ -354,11 +359,12 @@ async function anonymiseOrder(
   await tx.emailOutbox.deleteMany({ where: { orderId: order.id } });
 
   // Stripe event payloads can embed the order metadata. Redact them now rather
-  // than waiting for the 30-day retention window.
+  // than waiting for the 30-day retention window. (SQLite stores the payload as
+  // TEXT; json_extract is provided by the JSON1 extension.)
   await tx.$executeRaw`
     UPDATE StripeEvent
-       SET payload = JSON_OBJECT('redacted', true, 'reason', 'erasure')
-     WHERE JSON_UNQUOTE(JSON_EXTRACT(payload, '$.data.object.metadata.orderId')) = ${order.id}`;
+       SET payload = '{"redacted":true,"reason":"erasure"}'
+     WHERE json_extract(payload, '$.data.object.metadata.orderId') = ${order.id}`;
 
   // Admin cancellation reasons are free text and can contain PII.
   await tx.orderEvent.updateMany({
@@ -366,7 +372,7 @@ async function anonymiseOrder(
       orderId: order.id,
       type: { in: ["CANCELLED_BY_BAKER", "CANCELLED_BY_CUSTOMER"] },
     },
-    data: { metadata: { redacted: true } as Prisma.InputJsonValue },
+    data: { metadata: toJsonText({ redacted: true }) },
   });
 
   await tx.orderEvent.create({
@@ -375,10 +381,10 @@ async function anonymiseOrder(
       orderId: order.id,
       type: "DATA_ERASED",
       actorType: "SYSTEM",
-      metadata: {
+      metadata: toJsonText({
         privacyRequestId: requestId,
         retained: ["amounts", "paymentIds", "timestamps", "reference"],
-      },
+      }),
     },
   });
 }

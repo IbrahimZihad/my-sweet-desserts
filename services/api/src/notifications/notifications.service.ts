@@ -4,6 +4,7 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import type { Prisma } from "@prisma/client";
 import { Resend } from "resend";
 import { PrismaService } from "../prisma/prisma.service";
+import { fromJsonText, toJsonText } from "../common/json";
 
 type Db = Prisma.TransactionClient;
 
@@ -38,7 +39,7 @@ export class NotificationsService {
         orderId: job.orderId,
         toEmail: job.toEmail,
         template: job.template,
-        payload: job.payload as Prisma.InputJsonValue,
+        payload: toJsonText(job.payload),
       },
     });
   }
@@ -69,7 +70,7 @@ export class NotificationsService {
 
         const { subject, html } = this.render(
           job.template as EmailJob["template"],
-          (job.payload ?? {}) as Record<string, unknown>,
+          fromJsonText<Record<string, unknown>>(job.payload, {}),
         );
         const { error } = await this.resend.emails.send({
           from: this.from,

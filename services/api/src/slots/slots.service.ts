@@ -1,11 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { SlotStatus } from "@prisma/client";
 import { fromZonedTime } from "date-fns-tz";
-import type {
-  AvailabilityQuery,
-  AvailabilityResponse,
-  GenerateSlotsInput,
-  UpdateSlotInput,
+import {
+  SlotStatus,
+  type AvailabilityQuery,
+  type AvailabilityResponse,
+  type GenerateSlotsInput,
+  type UpdateSlotInput,
 } from "@cakeflow/contracts";
 import { PrismaService } from "../prisma/prisma.service";
 

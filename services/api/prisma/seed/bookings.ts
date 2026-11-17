@@ -117,7 +117,7 @@ export async function seedDemoBooking(
         orderId: order.id,
         type: "CONFIRMED",
         actorType: "SYSTEM",
-        metadata: { seeded: true, cakeName: cake.name },
+        metadata: JSON.stringify({ seeded: true, cakeName: cake.name }),
       },
     });
 

@@ -8,7 +8,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@cakeflow/contracts";
 import { PrismaService } from "../../prisma/prisma.service";
 import { IS_PUBLIC_KEY } from "../decorators/auth.decorators";
 import type { AuthenticatedUser } from "../decorators/request.decorators";

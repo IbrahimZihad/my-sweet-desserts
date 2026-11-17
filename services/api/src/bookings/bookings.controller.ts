@@ -5,9 +5,9 @@ import {
   createBookingSchema,
   emailSchema,
   isoDateSchema,
+  OrderStatus,
   type CreateBookingInput,
 } from "@cakeflow/contracts";
-import { OrderStatus } from "@prisma/client";
 import { Public, Roles } from "../common/decorators/auth.decorators";
 import { CurrentUser, TenantId, type AuthenticatedUser } from "../common/decorators/request.decorators";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
