@@ -166,7 +166,16 @@ export class SlotsService {
       }
     }
 
-    const result = await this.prisma.slot.createMany({ data: rows, skipDuplicates: true });
+    // SQLite's Prisma connector does not support `createMany({ skipDuplicates })`,
+    // so filter the already-existing starts first (single-writer SQLite makes
+    // this race-free enough for an admin-only action).
+    const existing = await this.prisma.slot.findMany({
+      where: { bakeryId, startsAt: { in: rows.map((row) => row.startsAt) } },
+      select: { startsAt: true },
+    });
+    const taken = new Set(existing.map((slot) => slot.startsAt.getTime()));
+    const fresh = rows.filter((row) => !taken.has(row.startsAt.getTime()));
+    const result = fresh.length > 0 ? await this.prisma.slot.createMany({ data: fresh }) : { count: 0 };
     return { created: result.count, skipped: rows.length - result.count };
   }
 
