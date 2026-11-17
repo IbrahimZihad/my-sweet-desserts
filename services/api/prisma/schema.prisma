@@ -1,101 +1,20 @@
-// Prisma schema for CakeFlow — one bakery per deployment (tenant), shared MySQL schema.
+// Prisma schema for CakeFlow — one bakery per deployment (tenant), SQLite.
 // Every tenant-owned row carries `bakeryId`; repositories must never query without it.
+//
+// SQLite (via Prisma) supports neither `enum` nor `Json`, so:
+//   * status/role/kind columns are plain TEXT. The allowed values live in
+//     `@cakeflow/contracts` and are enforced by the zod schemas at the API edge
+//     (and by the typed constants used across the service layer).
+//   * JSON columns are TEXT holding serialised JSON; read/write them through
+//     `src/common/json.ts` so the encoding stays consistent.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider          = "mysql"
-  url               = env("DATABASE_URL")
-  // Only used by `prisma migrate dev`; ignored by `migrate deploy`.
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
-}
-
-// ─────────────────────────────────────────────────────────────
-// Enums
-// ─────────────────────────────────────────────────────────────
-
-enum UserRole {
-  OWNER
-  STAFF
-  CUSTOMER
-}
-
-enum OrderStatus {
-  HELD // slot reserved, awaiting Stripe confirmation (short TTL)
-  PENDING_PAYMENT // kept for PSP "processing" states
-  CONFIRMED
-  CANCELLED
-  EXPIRED
-  COMPLETED
-}
-
-enum PaymentStatus {
-  REQUIRES_PAYMENT
-  PROCESSING
-  SUCCEEDED
-  FAILED
-  REFUNDED
-  PARTIALLY_REFUNDED
-  CANCELLED
-}
-
-enum PaymentKind {
-  DEPOSIT
-  BALANCE
-  REFUND
-}
-
-enum DepositType {
-  FLAT
-  PERCENTAGE
-}
-
-enum SlotStatus {
-  OPEN
-  CLOSED
-}
-
-enum FulfillmentType {
-  PICKUP
-}
-
-enum OutboxStatus {
-  PENDING
-  SENT
-  FAILED
-}
-
-enum OrderEventType {
-  CREATED
-  PAYMENT_SUCCEEDED
-  PAYMENT_FAILED
-  CONFIRMED
-  CANCELLED_BY_CUSTOMER
-  CANCELLED_BY_BAKER
-  EXPIRED
-  COMPLETED
-  DEPOSIT_REFUNDED
-  DATA_EXPORTED
-  DATA_ERASED
-}
-
-enum PrivacyRequestType {
-  EXPORT
-  ERASURE
-}
-
-enum PrivacyRequestStatus {
-  COMPLETED
-  REJECTED
-}
-
-enum ActorType {
-  CUSTOMER
-  BAKER
-  SYSTEM
-  STRIPE
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -104,40 +23,40 @@ enum ActorType {
 
 model Bakery {
   id           String  @id @default(cuid())
-  slug         String  @unique @db.VarChar(63)
-  customDomain String? @unique @db.VarChar(253)
-  name         String  @db.VarChar(120)
-  legalName    String? @db.VarChar(160)
-  email        String  @db.VarChar(254)
-  phone        String? @db.VarChar(32)
-  timezone     String  @default("Australia/Melbourne") @db.VarChar(64)
-  currency     String  @default("AUD") @db.Char(3)
+  slug         String  @unique
+  customDomain String? @unique
+  name         String
+  legalName    String?
+  email        String
+  phone        String?
+  timezone     String  @default("Australia/Melbourne")
+  currency     String  @default("AUD")
 
   // Storefront / branding
-  logoUrl      String? @db.VarChar(2048)
-  heroImageUrl String? @db.VarChar(2048)
-  brandColor   String  @default("#C084A0") @db.Char(7)
-  about        String? @db.Text
-  addressLine  String? @db.VarChar(200)
-  suburb       String? @db.VarChar(100)
-  postcode     String? @db.VarChar(10)
+  logoUrl      String?
+  heroImageUrl String?
+  brandColor   String  @default("#C084A0")
+  about        String?
+  addressLine  String?
+  suburb       String?
+  postcode     String?
 
   // Stripe Connect (destination charges)
-  stripeAccountId     String? @unique @db.VarChar(255)
+  stripeAccountId     String? @unique
   stripeChargesEnabled Boolean @default(false)
 
   // Deposit policy
-  depositType       DepositType @default(FLAT)
-  depositValue      Int         @default(2000) // FLAT = cents, PERCENTAGE = basis points (2500 = 25%)
-  depositRefundable Boolean     @default(true)
-  refundWindowHours Int         @default(48)
-  holdMinutes       Int         @default(15)
-  leadTimeHours     Int         @default(48)
-  maxAdvanceDays    Int         @default(90)
+  depositType       String @default("FLAT") // "FLAT" | "PERCENTAGE"
+  depositValue      Int    @default(2000) // FLAT = cents, PERCENTAGE = basis points (2500 = 25%)
+  depositRefundable Boolean @default(true)
+  refundWindowHours Int     @default(48)
+  holdMinutes       Int     @default(15)
+  leadTimeHours     Int     @default(48)
+  maxAdvanceDays    Int     @default(90)
 
   // Privacy / storage limitation (GDPR Art. 5(1)(e))
   // Days after which closed orders are anonymised by the retention job.
-  piiRetentionDays  Int         @default(730)
+  piiRetentionDays  Int     @default(730)
 
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -162,11 +81,11 @@ model Bakery {
 model User {
   id           String    @id @default(cuid())
   bakeryId     String
-  email        String    @db.VarChar(254)
-  name         String    @db.VarChar(120)
-  phone        String?   @db.VarChar(32)
-  passwordHash String?   @db.VarChar(255) // null for guest/customer accounts
-  role         UserRole  @default(CUSTOMER)
+  email        String
+  name         String
+  phone        String?
+  passwordHash String? // null for guest/customer accounts
+  role         String    @default("CUSTOMER") // "OWNER" | "STAFF" | "CUSTOMER"
   isActive     Boolean   @default(true)
   emailVerifiedAt DateTime?
   lastLoginAt  DateTime?
@@ -185,9 +104,9 @@ model User {
 model Session {
   id               String    @id @default(cuid())
   userId           String
-  refreshTokenHash String    @unique @db.VarChar(64) // sha256 hex
-  userAgent        String?   @db.VarChar(512)
-  ipAddress        String?   @db.VarChar(64)
+  refreshTokenHash String    @unique // sha256 hex
+  userAgent        String?
+  ipAddress        String?
   expiresAt        DateTime
   revokedAt        DateTime?
   createdAt        DateTime  @default(now())
@@ -206,15 +125,15 @@ model Session {
 model Cake {
   id           String  @id @default(cuid())
   bakeryId     String
-  slug         String  @db.VarChar(120)
-  name         String  @db.VarChar(160) // e.g. "Vanilla Bean Celebration"
-  description  String? @db.Text
-  flavour      String  @db.VarChar(120)
-  sizeLabel    String  @db.VarChar(40) // e.g. "30cm"
+  slug         String
+  name         String // e.g. "Vanilla Bean Celebration"
+  description  String?
+  flavour      String
+  sizeLabel    String // e.g. "30cm"
   servings     Int     @default(1)
   priceCents   Int
-  imageUrl     String? @db.VarChar(2048)
-  allergens    Json? // string[]
+  imageUrl     String?
+  allergens    String? // JSON: string[]
   leadTimeHours Int?   // overrides bakery default when set
   isActive     Boolean @default(true)
   sortOrder    Int     @default(0)
@@ -237,10 +156,10 @@ model Slot {
   bakeryId    String
   startsAt    DateTime
   endsAt      DateTime
-  serviceDate DateTime   @db.Date // bakery-local date, used for grouping/constraints
+  serviceDate DateTime   // bakery-local date, used for grouping/constraints
   capacity    Int        @default(1)
   bookedCount Int        @default(0)
-  status      SlotStatus @default(OPEN)
+  status      String     @default("OPEN") // "OPEN" | "CLOSED"
   priceOverrideCents Int? // optional time-based pricing
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -258,26 +177,26 @@ model Slot {
 
 model Order {
   id          String @id @default(cuid())
-  reference   String @unique @db.VarChar(24) // human-readable, e.g. CF-8K2M4Q
+  reference   String @unique // human-readable, e.g. CF-8K2M4Q
   bakeryId    String
   customerId  String
   cakeId      String
   slotId      String
   createdById String?
 
-  status          OrderStatus     @default(HELD)
-  fulfillmentType FulfillmentType @default(PICKUP)
+  status          String @default("HELD")
+  fulfillmentType String @default("PICKUP")
 
   // Immutable customer snapshot (orders must survive profile edits)
-  customerName  String @db.VarChar(120)
-  customerEmail String @db.VarChar(254)
-  customerPhone String @db.VarChar(32)
-  notes         String? @db.VarChar(500)
+  customerName  String
+  customerEmail String
+  customerPhone String
+  notes         String?
 
   totalCents      Int
   depositCents    Int
   balanceDueCents Int
-  currency        String @db.Char(3)
+  currency        String
 
   depositRefundable   Boolean
   depositRefundedAt   DateTime?
@@ -286,11 +205,11 @@ model Order {
   holdExpiresAt DateTime
   confirmedAt   DateTime?
   cancelledAt   DateTime?
-  cancellationReason String? @db.VarChar(500)
-  idempotencyKey String @db.VarChar(128)
+  cancellationReason String?
+  idempotencyKey String
 
   // Consent + privacy lifecycle (GDPR Art. 7, 9, 13, 17)
-  privacyPolicyVersion String?  @db.VarChar(20)
+  privacyPolicyVersion String?
   privacyAcceptedAt    DateTime?
   healthDataConsentAt  DateTime?
   anonymisedAt         DateTime?
@@ -320,20 +239,20 @@ model Payment {
   id        String @id @default(cuid())
   bakeryId  String
   orderId   String
-  kind      PaymentKind
-  status    PaymentStatus @default(REQUIRES_PAYMENT)
+  kind      String // "DEPOSIT" | "BALANCE" | "REFUND"
+  status    String @default("REQUIRES_PAYMENT")
   amountCents Int
-  currency  String @db.Char(3)
+  currency  String
 
-  stripePaymentIntentId String? @unique @db.VarChar(255)
-  stripeChargeId        String? @db.VarChar(255)
-  stripeRefundId        String? @db.VarChar(255)
-  stripeEventId         String? @db.VarChar(255)
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+  stripeRefundId        String?
+  stripeEventId         String?
 
   refundable     Boolean  @default(true)
   refundedCents  Int      @default(0)
-  failureCode    String?  @db.VarChar(120)
-  failureMessage String?  @db.VarChar(500)
+  failureCode    String?
+  failureMessage String?
   refundedAt     DateTime?
 
   createdAt DateTime @default(now())
@@ -349,12 +268,12 @@ model Payment {
 // Webhook idempotency. Global table: Stripe events are not tenant-scoped.
 model StripeEvent {
   id            String   @id @default(cuid())
-  stripeEventId String   @unique @db.VarChar(255)
-  type          String   @db.VarChar(120)
-  payload       Json
+  stripeEventId String   @unique
+  type          String
+  payload       String   // JSON: raw Stripe event
   processingAt  DateTime?
   processedAt   DateTime?
-  error         String?  @db.Text
+  error         String?
   attempts      Int      @default(0)
   createdAt     DateTime @default(now())
 
@@ -369,10 +288,10 @@ model OrderEvent {
   id       String         @id @default(cuid())
   bakeryId String
   orderId  String
-  type     OrderEventType
-  actorType ActorType     @default(SYSTEM)
-  actorId  String?        @db.VarChar(64)
-  metadata Json?
+  type     String         // OrderEventType
+  actorType String        @default("SYSTEM") // "CUSTOMER" | "BAKER" | "SYSTEM" | "STRIPE"
+  actorId  String?
+  metadata String?        // JSON
   createdAt DateTime      @default(now())
 
   bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
@@ -386,14 +305,14 @@ model EmailOutbox {
   id           String       @id @default(cuid())
   bakeryId     String
   orderId      String?
-  toEmail      String       @db.VarChar(254)
-  template     String       @db.VarChar(64) // BOOKING_CONFIRMED | BOOKING_CANCELLED | ...
-  payload      Json
-  status       OutboxStatus @default(PENDING)
+  toEmail      String
+  template     String       // BOOKING_CONFIRMED | BOOKING_CANCELLED | ...
+  payload      String       // JSON
+  status       String       @default("PENDING") // "PENDING" | "SENT" | "FAILED"
   attempts     Int          @default(0)
   nextAttemptAt DateTime    @default(now())
   sentAt       DateTime?
-  lastError    String?      @db.VarChar(1000)
+  lastError    String?
   createdAt    DateTime     @default(now())
 
   bakery Bakery @relation(fields: [bakeryId], references: [id], onDelete: Cascade)
@@ -408,12 +327,12 @@ model EmailOutbox {
 model PrivacyRequest {
   id          String               @id @default(cuid())
   bakeryId    String
-  type        PrivacyRequestType
-  status      PrivacyRequestStatus @default(COMPLETED)
-  reference   String               @db.VarChar(24)
+  type        String               // "EXPORT" | "ERASURE"
+  status      String               @default("COMPLETED")
+  reference   String
   orderId     String?
-  subjectEmailHash String          @db.VarChar(64)
-  reason      String?              @db.VarChar(500)
+  subjectEmailHash String
+  reason      String?
   requestedAt DateTime             @default(now())
   completedAt DateTime?
 

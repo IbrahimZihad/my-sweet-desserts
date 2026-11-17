@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { OrderStatus, PaymentKind, PaymentStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { OrderStatus, PaymentKind, PaymentStatus } from "@cakeflow/contracts";
 import Stripe from "stripe";
 import { PrismaService } from "../prisma/prisma.service";
+import { toJsonText } from "../common/json";
 
 interface DepositIntentInput {
   order: {
@@ -224,7 +226,8 @@ export class PaymentsService {
    * return null instead of double-processing the event.
    */
   private async claimEvent(event: Stripe.Event) {
-    const payload = JSON.parse(JSON.stringify(event)) as Prisma.InputJsonValue;
+    // Stripe events are plain JSON; store the serialised form (SQLite TEXT).
+    const payload = toJsonText(event);
     const existing = await this.prisma.stripeEvent.findUnique({
       where: { stripeEventId: event.id },
       select: { id: true, processedAt: true, processingAt: true },
@@ -357,7 +360,7 @@ export class PaymentsService {
           orderId: order.id,
           toEmail: order.customerEmail,
           template: "BOOKING_CONFIRMED",
-          payload: {
+          payload: toJsonText({
             reference: order.reference,
             customerName: order.customerName,
             bakeryName: order.bakery.name,
@@ -366,7 +369,7 @@ export class PaymentsService {
             timezone: order.bakery.timezone,
             depositCents: order.depositCents,
             currency: order.currency,
-          },
+          }),
         },
       });
 
@@ -402,7 +405,7 @@ export class PaymentsService {
           orderId: payment.orderId,
           type: "PAYMENT_FAILED",
           actorType: "STRIPE",
-          metadata: { paymentIntentId: intent.id, code: failure?.code ?? null },
+          metadata: toJsonText({ paymentIntentId: intent.id, code: failure?.code ?? null }),
         },
       });
     });
@@ -434,7 +437,7 @@ export class PaymentsService {
         data: { status: PaymentStatus.CANCELLED, stripePaymentIntentId: intent.id },
       });
       await tx.$executeRaw`
-        UPDATE Slot SET bookedCount = GREATEST(bookedCount - 1, 0), updatedAt = UTC_TIMESTAMP(3)
+        UPDATE Slot SET bookedCount = MAX(bookedCount - 1, 0), updatedAt = ${new Date()}
         WHERE id = ${order.slotId} AND bakeryId = ${payment.bakeryId}`;
       await tx.orderEvent.create({
         data: {
@@ -442,7 +445,7 @@ export class PaymentsService {
           orderId: payment.orderId,
           type: "EXPIRED",
           actorType: "STRIPE",
-          metadata: { reason: "payment_intent_canceled" },
+          metadata: toJsonText({ reason: "payment_intent_canceled" }),
         },
       });
     });

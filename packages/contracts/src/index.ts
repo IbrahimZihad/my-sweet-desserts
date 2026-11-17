@@ -52,6 +52,47 @@ export const DepositType = {
 } as const;
 export type DepositType = (typeof DepositType)[keyof typeof DepositType];
 
+export const FulfillmentType = {
+  PICKUP: "PICKUP",
+} as const;
+export type FulfillmentType = (typeof FulfillmentType)[keyof typeof FulfillmentType];
+
+export const OutboxStatus = {
+  PENDING: "PENDING",
+  SENT: "SENT",
+  FAILED: "FAILED",
+} as const;
+export type OutboxStatus = (typeof OutboxStatus)[keyof typeof OutboxStatus];
+
+export const OrderEventType = {
+  CREATED: "CREATED",
+  PAYMENT_SUCCEEDED: "PAYMENT_SUCCEEDED",
+  PAYMENT_FAILED: "PAYMENT_FAILED",
+  CONFIRMED: "CONFIRMED",
+  CANCELLED_BY_CUSTOMER: "CANCELLED_BY_CUSTOMER",
+  CANCELLED_BY_BAKER: "CANCELLED_BY_BAKER",
+  EXPIRED: "EXPIRED",
+  COMPLETED: "COMPLETED",
+  DEPOSIT_REFUNDED: "DEPOSIT_REFUNDED",
+  DATA_EXPORTED: "DATA_EXPORTED",
+  DATA_ERASED: "DATA_ERASED",
+} as const;
+export type OrderEventType = (typeof OrderEventType)[keyof typeof OrderEventType];
+
+export const ActorType = {
+  CUSTOMER: "CUSTOMER",
+  BAKER: "BAKER",
+  SYSTEM: "SYSTEM",
+  STRIPE: "STRIPE",
+} as const;
+export type ActorType = (typeof ActorType)[keyof typeof ActorType];
+
+export const PrivacyRequestStatus = {
+  COMPLETED: "COMPLETED",
+  REJECTED: "REJECTED",
+} as const;
+export type PrivacyRequestStatus = (typeof PrivacyRequestStatus)[keyof typeof PrivacyRequestStatus];
+
 /* ────────────────────────────────────────────────────────────
  * Privacy / GDPR
  *

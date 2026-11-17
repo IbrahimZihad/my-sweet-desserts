@@ -7,20 +7,18 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { Cron } from "@nestjs/schedule";
+import { randomInt } from "node:crypto";
 import {
   ActorType,
   DepositType,
   OrderStatus,
   PaymentKind,
   PaymentStatus,
-  Prisma,
+  PRIVACY_POLICY_VERSION,
   SlotStatus,
   UserRole,
-} from "@prisma/client";
-import { Cron } from "@nestjs/schedule";
-import { randomInt } from "node:crypto";
-import {
-  PRIVACY_POLICY_VERSION,
   type BookingAnnouncementDto,
   type BookingAnnouncementsResponse,
   type BookingSummaryDto,
@@ -30,6 +28,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsService } from "../payments/payments.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { toJsonText } from "../common/json";
 
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ACTIVE_HOLD_STATUSES: OrderStatus[] = [
@@ -112,7 +111,7 @@ export class BookingsService {
       created = await this.prisma.$transaction(async (tx) => {
         const reserved = await tx.$executeRaw`
           UPDATE Slot
-             SET bookedCount = bookedCount + 1, updatedAt = UTC_TIMESTAMP(3)
+             SET bookedCount = bookedCount + 1, updatedAt = ${new Date()}
            WHERE id = ${slot.id}
              AND bakeryId = ${bakeryId}
              AND status = 'OPEN'
@@ -169,7 +168,7 @@ export class BookingsService {
             orderId: order.id,
             type: "CREATED",
             actorType: ActorType.CUSTOMER,
-            metadata: { slotId: slot.id, cakeId: cake.id, depositCents },
+            metadata: toJsonText({ slotId: slot.id, cakeId: cake.id, depositCents }),
           },
         });
 
@@ -466,7 +465,7 @@ export class BookingsService {
             data: { status: PaymentStatus.CANCELLED },
           });
           await tx.$executeRaw`
-            UPDATE Slot SET bookedCount = GREATEST(bookedCount - 1, 0), updatedAt = UTC_TIMESTAMP(3)
+            UPDATE Slot SET bookedCount = MAX(bookedCount - 1, 0), updatedAt = ${new Date()}
             WHERE id = ${order.slotId} AND bakeryId = ${order.bakeryId}`;
           await tx.orderEvent.create({
             data: {
@@ -474,7 +473,7 @@ export class BookingsService {
               orderId: order.id,
               type: "EXPIRED",
               actorType: ActorType.SYSTEM,
-              metadata: { reason: "hold_timeout" },
+              metadata: toJsonText({ reason: "hold_timeout" }),
             },
           });
           await this.notifications.enqueue(tx, {
@@ -625,7 +624,7 @@ export class BookingsService {
       }
 
       await tx.$executeRaw`
-        UPDATE Slot SET bookedCount = GREATEST(bookedCount - 1, 0), updatedAt = UTC_TIMESTAMP(3)
+        UPDATE Slot SET bookedCount = MAX(bookedCount - 1, 0), updatedAt = ${new Date()}
         WHERE id = ${order.slotId} AND bakeryId = ${order.bakeryId}`;
 
       await tx.payment.updateMany({
@@ -643,7 +642,7 @@ export class BookingsService {
           type: params.actorType === ActorType.BAKER ? "CANCELLED_BY_BAKER" : "CANCELLED_BY_CUSTOMER",
           actorType: params.actorType,
           actorId: params.actorId,
-          metadata: { reason: params.reason, refunded: params.refunded },
+          metadata: toJsonText({ reason: params.reason, refunded: params.refunded }),
         },
       });
 
@@ -698,7 +697,7 @@ export class BookingsService {
         },
       });
       await tx.$executeRaw`
-        UPDATE Slot SET bookedCount = GREATEST(bookedCount - 1, 0), updatedAt = UTC_TIMESTAMP(3)
+        UPDATE Slot SET bookedCount = MAX(bookedCount - 1, 0), updatedAt = ${new Date()}
         WHERE id = ${slotId} AND bakeryId = ${bakeryId}`;
       await tx.orderEvent.create({
         data: {
@@ -706,7 +705,7 @@ export class BookingsService {
           orderId,
           type: "PAYMENT_FAILED",
           actorType: ActorType.SYSTEM,
-          metadata: { reason: "intent_creation_failed" },
+          metadata: toJsonText({ reason: "intent_creation_failed" }),
         },
       });
     });
