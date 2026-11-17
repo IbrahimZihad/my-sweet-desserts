@@ -272,3 +272,60 @@ stripe listen --forward-to localhost:4000/v1/payments/webhook
   webhook and `/health`. Restrict ingress at the proxy if possible.
 - Use a managed MySQL with automated backups; the `Payment` and `OrderEvent`
   tables are the financial audit trail.
+
+### Render demo (ephemeral database, no persistence, no Docker)
+
+`render.yaml` deploys two free web services in Singapore, both on Render's
+**native Node runtime** — there is no Docker image involved:
+
+| Service | Runtime | Notes |
+| --- | --- | --- |
+| `cakeflow-api` | Node 20 | Runs a portable MariaDB on `127.0.0.1` plus the NestJS API |
+| `cakeflow-web` | Node 20 | Next.js storefront + BFF |
+
+Render's native runtime cannot `apt-get install` a database server, so the API
+build (`deploy/render/build-api.sh`) downloads the official MariaDB 10.11
+portable tarball, keeps only the daemon, client tools and bootstrap SQL, strips
+the debug symbols and verifies the shared-library dependencies. The start script
+(`deploy/render/start-api.sh`) then initialises a datadir in `/tmp`, migrates and
+seeds it, and runs the API. That means:
+
+- **All data resets on every restart, redeploy or free-tier spin-down.** Each
+  boot re-initialises the schema, applies migrations and re-seeds the demo bakery.
+- There is no backup and no financial audit trail. Do not take real payments or
+  real bookings on this deployment.
+- The first request after 15 minutes of inactivity can take a minute or more:
+  Render has to boot the instance, then MariaDB initialises, migrates and seeds.
+- The first build of `cakeflow-api` downloads ~350 MB (the MariaDB tarball), so
+  it is noticeably slower than later builds.
+- Free instances have 512 MB RAM, which is why `start-api.sh` caps the InnoDB
+  buffer pool at 64 MB, shrinks the other caches and disables the performance
+  schema.
+
+To deploy:
+
+1. Push the repository to GitHub/GitLab.
+2. In Render, choose **New → Blueprint** and select the repository. Render reads
+   `render.yaml`.
+3. Set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` and, if you want emails,
+   `RESEND_API_KEY`. The API boots with placeholder Stripe secrets; replace
+   `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` with test keys if you want the
+   payment step to work.
+4. If Render appends a suffix to either service name, update
+   `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` and
+   `WEB_ORIGIN` to the real `*.onrender.com` URLs.
+
+For anything that must survive a restart, point `DATABASE_URL` at a managed
+MySQL/MariaDB, run `pnpm db:deploy` as a release step, start the API with
+`node dist/main.js` and remove the `SEED_ALLOW_PRODUCTION` override. The demo
+scripts in `deploy/render/` are not used in that setup.
+
+Demo logins are the seeded ones: `owner@sweetcrumbs.test` / `ChangeMe123!` and
+`staff@sweetcrumbs.test` / `StaffPass123!`.
+
+Because the database is ephemeral, the API intentionally runs
+`prisma migrate deploy` and the seeder at boot in this mode. That is the one
+exception to the "migrations are a release step" rule; persistent deployments
+must still run `pnpm db:deploy` before starting the API and must never seed in
+production.
+

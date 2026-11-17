@@ -22,6 +22,9 @@ coverage/
 # prisma
 services/api/prisma/migrations/dev.db*
 
+# render build output (portable MariaDB downloaded during the build)
+deploy/render/vendor/
+
 # editors / OS
 .DS_Store
 Thumbs.db

@@ -1,0 +1,3 @@
+# Keep shell entrypoints LF-only: they are executed by bash on Linux (Render),
+# where a CRLF checkout fails with "$'\r': command not found".
+*.sh text eol=lf
