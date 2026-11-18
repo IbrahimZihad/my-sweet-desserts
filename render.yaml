@@ -62,11 +62,12 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: >-
-      pnpm install --frozen-lockfile --prod=false &&
-      pnpm --filter @cakeflow/contracts build &&
-      pnpm --filter @cakeflow/web build
-    startCommand: pnpm --filter @cakeflow/web start
+    # Forces NODE_ENV=production for `next build` and repairs a stale cached
+    # node_modules that contains a second copy of React.
+    buildCommand: bash deploy/render/build-web.sh
+    # Next.js must run in production mode; do not rely on the service env var,
+    # which can be overridden in the dashboard.
+    startCommand: NODE_ENV=production pnpm --filter @cakeflow/web start
     envVars:
       - key: NODE_ENV
         value: production

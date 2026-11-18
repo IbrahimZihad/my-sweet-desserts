@@ -271,7 +271,17 @@ SQLite is compiled into Node, so the API build
 (`deploy/render/build-api.sh`) is just dependency install, Prisma generate and
 `tsc`. The start script (`deploy/render/start-api.sh`) creates
 `/tmp/cakeflow/cakeflow.db`, applies the committed migrations, seeds the demo
-bakery and runs the API. That means:
+bakery and runs the API.
+
+The web build (`deploy/render/build-web.sh`) forces `NODE_ENV=production` for
+`next build`, because any other value makes Next.js mix its production and
+development server runtimes and breaks static prerendering. It also verifies
+that the workspace resolves exactly one copy of React
+(`deploy/render/check-single-react.cjs`); a cached `node_modules` directory
+holding a second React produces the same cryptic prerender crash, so the script
+wipes and reinstalls once if that happens.
+
+That means:
 
 - **All data resets on every restart, redeploy or free-tier spin-down.** Each
   boot recreates the database file, applies migrations and re-seeds the demo
