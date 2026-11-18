@@ -18,7 +18,7 @@
                     └───┬───────────┬──────────┬───┘
                         │           │          │
                    ┌────▼────┐  ┌───▼────┐  ┌──▼─────────┐
-                   │ MySQL 8 │  │ Stripe │  │ Resend     │
+                   │ SQLite  │  │ Stripe │  │ Resend     │
                    │ Prisma  │  │ Connect│  │ (outbox)   │
                    └─────────┘  └────────┘  └────────────┘
 ```
@@ -29,7 +29,7 @@ tenant, and forwards authenticated requests with the shared BFF key.
 
 ## 2. Multi-tenancy
 
-**Model:** shared MySQL schema, tenant discriminator `bakeryId` on every
+**Model:** single SQLite database, tenant discriminator `bakeryId` on every
 tenant-owned table. This keeps one deployment able to host a small number of
 bakeries, while the product constraint “one baker = one instance” still holds at
 the storefront level (one branded site per tenant).
@@ -234,7 +234,7 @@ email lost” failure and survives a Resend outage.
 ## 10. Deployment topology
 
 ```
-Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ MySQL (managed)
+Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ SQLite file
                           │
                           ├──▶ Stripe webhooks
                           └──▶ Resend
@@ -242,9 +242,9 @@ Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ MySQL (managed
 
 - The release step runs `pnpm db:deploy` before the API process starts.
 - The Render demo blueprint is the one exception: its API service runs on the
-  native Node runtime with an ephemeral MariaDB on `127.0.0.1` (no Docker), so it
-  migrates and seeds at boot. See `deploy/render/` and the README. Persistent
-  deployments must never do this.
+  native Node runtime with a SQLite file in `/tmp` (no Docker), so it migrates
+  and seeds at boot. See `deploy/render/` and the README. Persistent deployments
+  must never do this.
 - The API has `/health` outside the `/v1` prefix for load balancer checks.
 - Stripe webhook URL: `https://api.<domain>/v1/payments/webhook`.
 - Keep the API behind a proxy/firewall that only allows the web app, Stripe

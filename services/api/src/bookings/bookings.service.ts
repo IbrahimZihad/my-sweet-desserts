@@ -422,7 +422,7 @@ export class BookingsService {
       customerFirstName: row.customerName.trim().split(/\s+/)[0] || "Guest",
       cakeName: row.cake.name,
       slotStartsAt: row.slot.startsAt.toISOString(),
-      status: row.status,
+      status: row.status as OrderStatus,
       createdAt: row.createdAt.toISOString(),
     }));
 
@@ -733,7 +733,7 @@ function generateReference(): string {
 function toSummary(order: {
   id: string;
   reference: string;
-  status: OrderStatus;
+  status: string;
   cake: { name: string };
   slot: { startsAt: Date; endsAt: Date };
   totalCents: number;
@@ -742,18 +742,18 @@ function toSummary(order: {
   customerName: string;
   customerEmail: string;
   createdAt: Date;
-  payments: Array<{ status: PaymentStatus }>;
+  payments: Array<{ status: string }>;
 }): BookingSummaryDto {
   return {
     id: order.id,
     reference: order.reference,
-    status: order.status,
+    status: order.status as OrderStatus,
     cakeName: order.cake.name,
     slotStartsAt: order.slot.startsAt.toISOString(),
     slotEndsAt: order.slot.endsAt.toISOString(),
     totalCents: order.totalCents,
     depositCents: order.depositCents,
-    depositStatus: order.payments[0]?.status ?? PaymentStatus.REQUIRES_PAYMENT,
+    depositStatus: (order.payments[0]?.status ?? PaymentStatus.REQUIRES_PAYMENT) as PaymentStatus,
     depositRefundable: order.depositRefundable,
     customerName: order.customerName,
     customerEmail: order.customerEmail,

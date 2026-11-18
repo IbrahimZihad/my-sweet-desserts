@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { fromZonedTime } from "date-fns-tz";
 import {
+  DepositType,
   SlotStatus,
   type AvailabilityQuery,
   type AvailabilityResponse,
@@ -89,7 +90,7 @@ export class SlotsService {
         currency: bakery.currency,
         timezone: bakery.timezone,
         depositPolicy: {
-          type: bakery.depositType,
+          type: bakery.depositType as DepositType,
           value: bakery.depositValue,
           refundable: bakery.depositRefundable,
           refundWindowHours: bakery.refundWindowHours,

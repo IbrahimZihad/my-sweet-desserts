@@ -10,7 +10,7 @@ marketplace, driver tracking, or a full e-commerce basket.
 | Layer    | Technology                                                    |
 | -------- | ------------------------------------------------------------- |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS               |
-| Backend  | NestJS 10 (modular), TypeScript, MySQL 8                      |
+| Backend  | NestJS 10 (modular), TypeScript, SQLite                       |
 | Data     | Prisma ORM, versioned SQL migrations, idempotent seeders      |
 | Payments | Stripe PaymentIntents + Connect destination charges + webhooks |
 | Email    | Resend, via a transactional outbox table                      |
@@ -60,36 +60,21 @@ marketplace, driver tracking, or a full e-commerce basket.
 
 - Node.js 20.11+
 - pnpm 9 (`corepack enable`)
-- MySQL 8 running locally
 
-Create the databases once:
+No database server is needed: the API uses SQLite, and Prisma creates the
+database file on first migration.
 
-```sql
-CREATE DATABASE cakeflow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE cakeflow_shadow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-The local MySQL account is `root`@`localhost` with no password and all
-privileges. The root `.env` connects to it on `localhost:3306`:
+The root `.env` points at a file inside the API's Prisma directory:
 
 ```dotenv
-DATABASE_URL=mysql://root@localhost:3306/cakeflow
-SHADOW_DATABASE_URL=mysql://root@localhost:3306/cakeflow_shadow
+DATABASE_URL=file:./dev.db
 ```
 
-This root-account configuration is for local development only. For production,
-use a dedicated MySQL account with a password and access only to the required
-database(s), and configure the connection URLs through the deployment
-environment.
+Prisma resolves a relative `file:` URL against the schema directory, so this
+lands at `services/api/prisma/dev.db` (git-ignored). Any path works, including
+an absolute one such as `file:/tmp/cakeflow/cakeflow.db`.
 
-`cakeflow_shadow` is only used by `prisma migrate dev` to detect schema drift.
-`prisma migrate deploy` (production) never touches it, so the production user
-only needs privileges on the application database.
-
-> **MySQL auth plugin:** Prisma supports `caching_sha2_password` (the MySQL 8
-> default) and `mysql_native_password`, but not the legacy `sha256_password`.
-> If a connection fails with `Unknown authentication plugin`, make sure the
-> MySQL account used by the connection URL uses one of the supported plugins.
+Delete that file to start from scratch; `pnpm db:migrate` recreates it.
 
 ## Setup
 
@@ -103,12 +88,11 @@ pnpm db:seed                    # demo bakery, staff, cakes, slots, booking
 pnpm dev                        # API :4000, web :3000
 ```
 
-Before running the database commands, update the URLs in `.env` to match the
-local MySQL setup above:
+Before running the database commands, make sure `DATABASE_URL` in `.env` points
+at the SQLite file you want to use:
 
 ```dotenv
-DATABASE_URL=mysql://root@localhost:3306/cakeflow
-SHADOW_DATABASE_URL=mysql://root@localhost:3306/cakeflow_shadow
+DATABASE_URL=file:./dev.db
 ```
 
 Also replace the placeholder application secrets in `.env`. Do not commit this
@@ -270,37 +254,32 @@ stripe listen --forward-to localhost:4000/v1/payments/webhook
 - Point Stripe's webhook at `https://api.yourdomain.com/v1/payments/webhook`.
 - The API must not be publicly reachable without the BFF key except for the
   webhook and `/health`. Restrict ingress at the proxy if possible.
-- Use a managed MySQL with automated backups; the `Payment` and `OrderEvent`
+- Use a managed database with automated backups; the `Payment` and `OrderEvent`
   tables are the financial audit trail.
 
-### Render demo (ephemeral database, no persistence, no Docker)
+### Render demo (ephemeral SQLite database, no persistence, no Docker)
 
 `render.yaml` deploys two free web services in Singapore, both on Render's
 **native Node runtime** — there is no Docker image involved:
 
 | Service | Runtime | Notes |
 | --- | --- | --- |
-| `cakeflow-api` | Node 20 | Runs a portable MariaDB on `127.0.0.1` plus the NestJS API |
+| `cakeflow-api` | Node 20 | NestJS API backed by a SQLite file in `/tmp` |
 | `cakeflow-web` | Node 20 | Next.js storefront + BFF |
 
-Render's native runtime cannot `apt-get install` a database server, so the API
-build (`deploy/render/build-api.sh`) downloads the official MariaDB 10.11
-portable tarball, keeps only the daemon, client tools and bootstrap SQL, strips
-the debug symbols and verifies the shared-library dependencies. The start script
-(`deploy/render/start-api.sh`) then initialises a datadir in `/tmp`, migrates and
-seeds it, and runs the API. That means:
+SQLite is compiled into Node, so the API build
+(`deploy/render/build-api.sh`) is just dependency install, Prisma generate and
+`tsc`. The start script (`deploy/render/start-api.sh`) creates
+`/tmp/cakeflow/cakeflow.db`, applies the committed migrations, seeds the demo
+bakery and runs the API. That means:
 
 - **All data resets on every restart, redeploy or free-tier spin-down.** Each
-  boot re-initialises the schema, applies migrations and re-seeds the demo bakery.
+  boot recreates the database file, applies migrations and re-seeds the demo
+  bakery.
 - There is no backup and no financial audit trail. Do not take real payments or
   real bookings on this deployment.
 - The first request after 15 minutes of inactivity can take a minute or more:
-  Render has to boot the instance, then MariaDB initialises, migrates and seeds.
-- The first build of `cakeflow-api` downloads ~350 MB (the MariaDB tarball), so
-  it is noticeably slower than later builds.
-- Free instances have 512 MB RAM, which is why `start-api.sh` caps the InnoDB
-  buffer pool at 64 MB, shrinks the other caches and disables the performance
-  schema.
+  Render has to boot the instance, then the API migrates and seeds.
 
 To deploy:
 
@@ -315,10 +294,10 @@ To deploy:
    `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` and
    `WEB_ORIGIN` to the real `*.onrender.com` URLs.
 
-For anything that must survive a restart, point `DATABASE_URL` at a managed
-MySQL/MariaDB, run `pnpm db:deploy` as a release step, start the API with
-`node dist/main.js` and remove the `SEED_ALLOW_PRODUCTION` override. The demo
-scripts in `deploy/render/` are not used in that setup.
+For anything that must survive a restart, point `DATABASE_URL` at a persistent
+volume or a managed database, run `pnpm db:deploy` as a release step, start the
+API with `node dist/main.js` and remove the `SEED_ALLOW_PRODUCTION` override. The
+demo scripts in `deploy/render/` are not used in that setup.
 
 Demo logins are the seeded ones: `owner@sweetcrumbs.test` / `ChangeMe123!` and
 `staff@sweetcrumbs.test` / `StaffPass123!`.

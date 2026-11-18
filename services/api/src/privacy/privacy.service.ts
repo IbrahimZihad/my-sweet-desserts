@@ -10,6 +10,8 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { createHash } from "node:crypto";
 import {
   OrderStatus,
+  PaymentKind,
+  PaymentStatus,
   PRIVACY_POLICY_VERSION,
   PrivacyRequestStatus,
   PrivacyRequestType,
@@ -100,7 +102,7 @@ export class PrivacyService {
       },
       orders: orders.map((order) => ({
         reference: order.reference,
-        status: order.status,
+        status: order.status as OrderStatus,
         cakeName: order.cake.name,
         slotStartsAt: order.slot.startsAt.toISOString(),
         totalCents: order.totalCents,
@@ -116,8 +118,8 @@ export class PrivacyService {
       payments: orders.flatMap((order) =>
         order.payments.map((payment) => ({
           orderReference: order.reference,
-          kind: payment.kind,
-          status: payment.status,
+          kind: payment.kind as PaymentKind,
+          status: payment.status as PaymentStatus,
           amountCents: payment.amountCents,
           refundedCents: payment.refundedCents,
           currency: payment.currency,
@@ -230,8 +232,8 @@ export class PrivacyService {
       pageSize: size,
       rows: rows.map((row) => ({
         id: row.id,
-        type: row.type,
-        status: row.status,
+        type: row.type as PrivacyRequestType,
+        status: row.status as PrivacyRequestStatus,
         reference: row.reference,
         subjectEmailHashPrefix: row.subjectEmailHash.slice(0, 12),
         requestedAt: row.requestedAt.toISOString(),

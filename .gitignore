@@ -19,11 +19,9 @@ out/
 coverage/
 .nyc_output/
 
-# prisma
-services/api/prisma/migrations/dev.db*
-
-# render build output (portable MariaDB downloaded during the build)
-deploy/render/vendor/
+# prisma / sqlite (local databases)
+services/api/prisma/*.db
+services/api/prisma/*.db-journal
 
 # editors / OS
 .DS_Store

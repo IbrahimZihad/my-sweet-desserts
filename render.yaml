@@ -1,9 +1,9 @@
-# Render Blueprint — CakeFlow demo (ephemeral database, no Docker).
+# Render Blueprint - CakeFlow demo (ephemeral SQLite database, no Docker).
 #
 # Two free web services on Render's native Node runtime:
-#   cakeflow-api  Builds the NestJS API and a portable MariaDB, then boots both
-#                 on the same instance. The datadir lives in /tmp, so data resets
-#                 on every restart/redeploy. See deploy/render/*.sh.
+#   cakeflow-api  Builds the NestJS API and boots it against a SQLite file in
+#                 /tmp. The file is lost on every restart/redeploy, so data
+#                 resets. See deploy/render/*.sh.
 #   cakeflow-web  Next.js storefront + BFF.
 #
 # After the first deploy, if Render had to suffix either service name, update
@@ -15,9 +15,8 @@ services:
     runtime: node
     plan: free
     region: singapore
-    # The build downloads MariaDB, strips it, verifies its shared libraries and
-    # compiles contracts + API. The start command initialises the throwaway
-    # database, migrates, seeds and runs the API in the foreground.
+    # The build compiles contracts + API. The start command creates the throwaway
+    # SQLite file, migrates, seeds and runs the API in the foreground.
     buildCommand: bash deploy/render/build-api.sh
     startCommand: bash deploy/render/start-api.sh
     healthCheckPath: /health
@@ -26,11 +25,9 @@ services:
         value: production
       - key: NODE_VERSION
         value: 20.18.0
-      # Both point at the MariaDB that start-api.sh boots on 127.0.0.1.
+      # Absolute path so the database lives in ephemeral /tmp, not the checkout.
       - key: DATABASE_URL
-        value: mysql://cakeflow:cakeflow@127.0.0.1:3306/cakeflow
-      - key: SHADOW_DATABASE_URL
-        value: mysql://cakeflow:cakeflow@127.0.0.1:3306/cakeflow_shadow
+        value: file:/tmp/cakeflow/cakeflow.db
       - key: WEB_ORIGIN
         value: https://cakeflow-web.onrender.com
       - key: COOKIE_DOMAIN
