@@ -9,10 +9,6 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
-echo "[build] enabling pnpm"
-corepack enable
-corepack prepare pnpm@9.12.0 --activate
-
 echo "[build] installing workspace dependencies"
 # --prod=false: NODE_ENV=production is set on the service, but the build needs
 # the prisma CLI, tsx and the TypeScript toolchain from devDependencies.

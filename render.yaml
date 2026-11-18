@@ -63,8 +63,6 @@ services:
     plan: free
     region: singapore
     buildCommand: >-
-      corepack enable &&
-      corepack prepare pnpm@9.12.0 --activate &&
       pnpm install --frozen-lockfile --prod=false &&
       pnpm --filter @cakeflow/contracts build &&
       pnpm --filter @cakeflow/web build
