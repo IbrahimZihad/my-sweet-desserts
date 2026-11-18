@@ -1,13 +1,8 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
-import { Cron, CronExpression } from "@nestjs/schedule";
 import { createHash } from "node:crypto";
+import type { AppConfig } from "../config/env";
+import { Logger } from "../common/logger";
+import { ConflictException, NotFoundException } from "../common/errors";
 import {
   OrderStatus,
   PaymentKind,
@@ -43,13 +38,12 @@ const RETENTION_NOTE =
   "because EU/UK accounting law and our legitimate interest in defending legal claims require them. " +
   "They no longer contain your name, email, phone number or free-text notes.";
 
-@Injectable()
 export class PrivacyService {
   private readonly logger = new Logger(PrivacyService.name);
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly config: AppConfig,
   ) {}
 
   /** GDPR Art. 15 (access) and Art. 20 (portability). */
@@ -247,7 +241,7 @@ export class PrivacyService {
    * manually by an owner. Only closed orders older than the bakery's retention
    * window are touched; the financial ledger stays intact.
    */
-  @Cron(CronExpression.EVERY_DAY_AT_3AM, { name: "privacy-retention" })
+  /** Scheduled by the app bootstrap nightly; can also be triggered by an owner. */
   async runRetention(bakeryId?: string): Promise<{
     anonymisedOrders: number;
     redactedStripeEvents: number;
@@ -290,7 +284,7 @@ export class PrivacyService {
 
     // Stripe event payloads can contain customer details. Keep the event ID,
     // type and processing metadata for idempotency, but redact the payload.
-    const stripeDays = this.config.get<number>("STRIPE_EVENT_RETENTION_DAYS") ?? 30;
+    const stripeDays = this.config.STRIPE_EVENT_RETENTION_DAYS;
     const stripeCutoff = new Date(now.getTime() - stripeDays * 86_400_000);
     const redacted = await this.prisma.stripeEvent.updateMany({
       where: { processedAt: { lt: stripeCutoff } },

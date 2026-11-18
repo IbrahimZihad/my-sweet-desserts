@@ -1,4 +1,3 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { fromZonedTime } from "date-fns-tz";
 import {
   DepositType,
@@ -8,9 +7,9 @@ import {
   type GenerateSlotsInput,
   type UpdateSlotInput,
 } from "@cakeflow/contracts";
+import { ConflictException, NotFoundException } from "../common/errors";
 import { PrismaService } from "../prisma/prisma.service";
 
-@Injectable()
 export class SlotsService {
   constructor(private readonly prisma: PrismaService) {}
 

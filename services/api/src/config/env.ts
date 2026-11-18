@@ -1,3 +1,6 @@
+import { config as loadDotenv } from "dotenv";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 
 const envSchema = z.object({
@@ -24,14 +27,39 @@ const envSchema = z.object({
   STRIPE_EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
 });
 
-export type AppEnv = z.infer<typeof envSchema>;
+export type AppConfig = z.infer<typeof envSchema>;
 
-/** Passed to ConfigModule.forRoot({ validate }). */
-export function validateEnv(config: Record<string, unknown>): AppEnv {
-  const parsed = envSchema.safeParse(config);
+/**
+ * Validates configuration and returns a plain typed object. Replaces the
+ * NestJS `ConfigService` so services can use `config.JWT_ACCESS_SECRET`.
+ *
+ * When running outside Render, the repo-root `.env` is loaded if present.
+ * Render injects the variables directly, so no file is needed there.
+ */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  loadEnvFile(env);
+
+  const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n");
+    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   return parsed.data;
+}
+
+/** Walks up from the working directory looking for a `.env` file. */
+function loadEnvFile(env: NodeJS.ProcessEnv): void {
+  if (env !== process.env) return;
+
+  let directory = process.cwd();
+  for (let depth = 0; depth < 5; depth += 1) {
+    const candidate = join(directory, ".env");
+    if (existsSync(candidate)) {
+      loadDotenv({ path: candidate });
+      return;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return;
+    directory = parent;
+  }
 }

@@ -1,8 +1,10 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 
-@Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+/**
+ * Plain Prisma wrapper. The SQLite connector is compiled into Node, so there is
+ * no pool or network connection to manage — `connect()` just opens the file.
+ */
+export class PrismaService extends PrismaClient {
   constructor() {
     super({
       log:
@@ -12,11 +14,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
   }
 
-  async onModuleInit(): Promise<void> {
+  async connect(): Promise<void> {
     await this.$connect();
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async disconnect(): Promise<void> {
     await this.$disconnect();
   }
 }

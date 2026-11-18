@@ -1,13 +1,9 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
 import { OrderStatus, PaymentKind, PaymentStatus } from "@cakeflow/contracts";
 import Stripe from "stripe";
+import type { AppConfig } from "../config/env";
+import { Logger } from "../common/logger";
+import { BadRequestException, NotFoundException } from "../common/errors";
 import { PrismaService } from "../prisma/prisma.service";
 import { toJsonText } from "../common/json";
 
@@ -27,22 +23,21 @@ interface DepositIntentInput {
   };
 }
 
-@Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly stripe: Stripe;
   private readonly platformFeeBps: number;
 
   constructor(
-    private readonly config: ConfigService,
+    private readonly config: AppConfig,
     private readonly prisma: PrismaService,
   ) {
-    this.stripe = new Stripe(this.config.getOrThrow<string>("STRIPE_SECRET_KEY"), {
+    this.stripe = new Stripe(this.config.STRIPE_SECRET_KEY, {
       apiVersion: "2025-02-24.acacia",
       typescript: true,
       maxNetworkRetries: 2,
     });
-    this.platformFeeBps = this.config.get<number>("STRIPE_PLATFORM_FEE_BPS") ?? 0;
+    this.platformFeeBps = this.config.STRIPE_PLATFORM_FEE_BPS;
   }
 
   /**
@@ -192,7 +187,7 @@ export class PaymentsService {
       event = this.stripe.webhooks.constructEvent(
         rawBody,
         signature,
-        this.config.getOrThrow<string>("STRIPE_WEBHOOK_SECRET"),
+        this.config.STRIPE_WEBHOOK_SECRET,
       );
     } catch (error) {
       this.logger.warn(`Rejected Stripe webhook: ${error instanceof Error ? error.message : "invalid signature"}`);

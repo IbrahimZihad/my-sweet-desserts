@@ -5,7 +5,7 @@
 #  1. create the SQLite database file in /tmp (fresh on every boot)
 #  2. apply the committed migrations
 #  3. seed the demo bakery
-#  4. start the NestJS API in the foreground
+#  4. start the Express API in the foreground
 #
 # /tmp is ephemeral on Render, so every restart, redeploy or free-tier recycle
 # starts from an empty database. Nothing here is meant for real bookings: there

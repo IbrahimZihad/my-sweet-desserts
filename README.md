@@ -10,7 +10,7 @@ marketplace, driver tracking, or a full e-commerce basket.
 | Layer    | Technology                                                    |
 | -------- | ------------------------------------------------------------- |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS               |
-| Backend  | NestJS 10 (modular), TypeScript, SQLite                       |
+| Backend  | Express 4 (routers + middleware), TypeScript, SQLite          |
 | Data     | Prisma ORM, versioned SQL migrations, idempotent seeders      |
 | Payments | Stripe PaymentIntents + Connect destination charges + webhooks |
 | Email    | Resend, via a transactional outbox table                      |
@@ -30,22 +30,24 @@ marketplace, driver tracking, or a full e-commerce basket.
 │       │   └── api/                  # BFF route handlers
 │       ├── src/components/
 │       ├── src/lib/                  # typed API client, auth, tenant, format
-│       └── src/middleware.ts         # cheap admin cookie gate
+│       ├── src/middleware.ts         # cheap admin cookie gate
+│       └── server.cjs                # production server: API + Next.js, one port
 ├── services/
-│   └── api/                          # NestJS API
+│   └── api/                          # Express API
 │       ├── prisma/
 │       │   ├── schema.prisma         # multi-tenant data model
 │       │   ├── migrations/           # committed SQL migrations
 │       │   ├── seed/                 # modular seeders
 │       │   └── seed.ts               # seed entry point
 │       └── src/
+│           ├── app.ts                # createApiApp(): composition + routers
+│           ├── routes/               # Express routers (/v1/*, /health)
 │           ├── auth/                 # JWT access + rotating refresh sessions
-│           ├── bakeries/             # storefront, settings, cakes, stats
-│           ├── bookings/             # holds, cancellation, expiry cron
+│           ├── bookings/             # holds, cancellation, expiry job
 │           ├── payments/             # Stripe intents, refunds, webhooks
 │           ├── slots/                # availability + capacity
 │           ├── notifications/        # outbox worker (Resend)
-│           ├── common/               # tenant, guards, pipes, filters
+│           ├── common/               # auth middleware, errors, validation
 │           └── prisma/
 ├── packages/
 │   └── contracts/                    # zod schemas + shared DTOs
@@ -171,8 +173,8 @@ The seeder refuses to run with `NODE_ENV=production` unless
 
 ## Booking flow (important)
 
-1. `POST /api/bookings` (Next BFF) validates and forwards to NestJS.
-2. NestJS reserves capacity with an atomic conditional `UPDATE` and creates a
+1. `POST /api/bookings` (Next BFF) validates and forwards to the API.
+2. The API reserves capacity with an atomic conditional `UPDATE` and creates a
    `HELD` order plus a Stripe PaymentIntent.
 3. The browser confirms the card with Stripe Elements.
 4. Stripe calls `POST /v1/payments/webhook`. Only this signed webhook moves the
@@ -257,33 +259,33 @@ stripe listen --forward-to localhost:4000/v1/payments/webhook
 - Use a managed database with automated backups; the `Payment` and `OrderEvent`
   tables are the financial audit trail.
 
-### Render demo (ephemeral SQLite database, no persistence, no Docker)
+### Render demo (one free Web Service, ephemeral SQLite, no Docker)
 
-The demo runs on two **free Web Services** on Render's native Node runtime.
-There is no Docker image and no Blueprint: create both services by hand in the
-dashboard so everything stays on the free plan.
+The demo runs the whole product — Next.js storefront and admin, the BFF route
+handlers, and the Express API — as **one process in one free Web Service** on
+Render's native Node runtime. There is no Docker image and no Blueprint: create
+the service by hand in the dashboard so it stays on the free plan.
 
-| Service | Start command | Notes |
-| --- | --- | --- |
-| `cakeflow-api` | `bash deploy/render/start-api.sh` | NestJS API backed by a SQLite file in `/tmp` |
-| `cakeflow-web` | `NODE_ENV=production pnpm --filter @cakeflow/web start` | Next.js storefront + BFF |
+`apps/web/server.cjs` is a custom Next.js server. It mounts the API (compiled
+from `services/api` into `services/api/dist`) on the same port:
 
-Both services use the repository root as their root directory, the Node runtime
-and the Singapore region.
+| Path | Handled by |
+| --- | --- |
+| `/health` | Express API health probe |
+| `/v1/*` | Express API (auth, storefront, slots, bookings, payments, privacy) |
+| everything else | Next.js (storefront, admin dashboard, BFF route handlers) |
 
-SQLite is compiled into Node, so the API build
-(`deploy/render/build-api.sh`) is just dependency install, Prisma generate and
-`tsc`. The start script (`deploy/render/start-api.sh`) creates
+The BFF still calls the API over loopback HTTP with the shared `x-internal-key`.
+`server.cjs` sets `API_INTERNAL_URL=http://127.0.0.1:$PORT` automatically, so
+there is no second service and no public API URL to configure.
+
+SQLite is compiled into Node. The build (`deploy/render/build-web.sh`) installs
+the workspace, forces `NODE_ENV=production` (any other value breaks Next.js
+static prerendering), verifies that exactly one copy of React resolves, builds
+`@cakeflow/contracts`, generates the Prisma client, compiles the API with `tsc`,
+then runs `next build`. The start script (`deploy/render/start-web.sh`) creates
 `/tmp/cakeflow/cakeflow.db`, applies the committed migrations, seeds the demo
-bakery and runs the API.
-
-The web build (`deploy/render/build-web.sh`) forces `NODE_ENV=production` for
-`next build`, because any other value makes Next.js mix its production and
-development server runtimes and breaks static prerendering. It also verifies
-that the workspace resolves exactly one copy of React
-(`deploy/render/check-single-react.cjs`); a cached `node_modules` directory
-holding a second React produces the same cryptic prerender crash, so the script
-wipes and reinstalls once if that happens.
+bakery and starts `node server.cjs`.
 
 That means:
 
@@ -293,21 +295,21 @@ That means:
 - There is no backup and no financial audit trail. Do not take real payments or
   real bookings on this deployment.
 - The first request after 15 minutes of inactivity can take a minute or more:
-  Render has to boot the instance, then the API migrates and seeds.
+  Render has to boot the instance, then the service migrates and seeds.
 
 To deploy:
 
 1. Push the repository to GitHub/GitLab.
 2. In Render, choose **New → Web Service**, connect the repository, and use these
-   settings for the API:
+   settings:
 
    | Setting | Value |
    | --- | --- |
-   | Name | `cakeflow-api` |
+   | Name | `cakeflow` |
    | Root directory | repository root |
    | Runtime | Node |
-   | Build command | `bash deploy/render/build-api.sh` |
-   | Start command | `bash deploy/render/start-api.sh` |
+   | Build command | `bash deploy/render/build-web.sh` |
+   | Start command | `bash deploy/render/start-web.sh` |
    | Health check path | `/health` |
 
    Environment variables:
@@ -315,56 +317,39 @@ To deploy:
    | Variable | Value |
    | --- | --- |
    | `NODE_ENV` | `production` |
-   | `DATABASE_URL` | `file:/tmp/cakeflow/cakeflow.db` |
-   | `WEB_ORIGIN` | `https://cakeflow-web.onrender.com` |
-   | `COOKIE_DOMAIN` | `cakeflow-web.onrender.com` |
+   | `DATABASE_URL` | `file:/tmp/cakeflow/cakeflow.db` (optional; the start script defaults to this) |
+   | `WEB_ORIGIN` | `https://cakeflow.onrender.com` |
+   | `COOKIE_DOMAIN` | `cakeflow.onrender.com` |
    | `JWT_ACCESS_SECRET` | generated secret |
    | `JWT_REFRESH_SECRET` | generated secret |
    | `JWT_ACCESS_TTL` | `15m` |
    | `JWT_REFRESH_TTL` | `30d` |
    | `INTERNAL_API_KEY` | generated secret |
+   | `NEXT_PUBLIC_APP_URL` | `https://cakeflow.onrender.com` |
+   | `DEFAULT_BAKERY_SLUG` | `sweetcrumbs` |
    | `STRIPE_SECRET_KEY` | `sk_test_replace_me` |
    | `STRIPE_WEBHOOK_SECRET` | `whsec_replace_me` |
    | `STRIPE_PLATFORM_FEE_BPS` | `0` |
    | `EMAIL_FROM` | `CakeFlow <bookings@example.com>` |
    | `SEED_ALLOW_PRODUCTION` | `1` |
    | `RESEND_API_KEY` | optional, for emails |
-
-3. Create a second **New → Web Service** for the web app:
-
-   | Setting | Value |
-   | --- | --- |
-   | Name | `cakeflow-web` |
-   | Root directory | repository root |
-   | Runtime | Node |
-   | Build command | `bash deploy/render/build-web.sh` |
-   | Start command | `NODE_ENV=production pnpm --filter @cakeflow/web start` |
-
-   Environment variables:
-
-   | Variable | Value |
-   | --- | --- |
-   | `NODE_ENV` | `production` |
-   | `API_INTERNAL_URL` | `https://cakeflow-api.onrender.com` |
-   | `NEXT_PUBLIC_API_URL` | `https://cakeflow-api.onrender.com` |
-   | `NEXT_PUBLIC_APP_URL` | `https://cakeflow-web.onrender.com` |
-   | `DEFAULT_BAKERY_SLUG` | `sweetcrumbs` |
-   | `INTERNAL_API_KEY` | the same value as the API service |
    | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | optional, enables card entry |
 
-   `NODE_ENV` must be exactly `production`; `build-web.sh` forces it for the
-   build, and the start command forces it at runtime.
+   `NEXT_PUBLIC_*` values are inlined by `next build`, so set them before the
+   first build. `API_INTERNAL_URL` is derived at runtime and does not need to be
+   set.
 
-4. Generate the three secrets once and paste the same `INTERNAL_API_KEY` into
-   both services:
+3. Generate the secrets once:
 
    ```bash
    node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
    ```
 
-5. If Render appends a suffix to either service name, update
-   `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`,
-   `WEB_ORIGIN` and `COOKIE_DOMAIN` to the real `*.onrender.com` URLs.
+4. If Render appends a suffix to the service name, update `WEB_ORIGIN`,
+   `COOKIE_DOMAIN` and `NEXT_PUBLIC_APP_URL` to the real `*.onrender.com` URL.
+
+5. Point Stripe's webhook at
+   `https://<service>.onrender.com/v1/payments/webhook`.
 
 6. Replace `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` with test keys if you
    want the payment step to work. Without them the booking is still created and
@@ -372,8 +357,12 @@ To deploy:
 
 For anything that must survive a restart, point `DATABASE_URL` at a persistent
 volume or a managed database, run `pnpm db:deploy` as a release step, start the
-API with `node dist/main.js` and remove the `SEED_ALLOW_PRODUCTION` override. The
-demo scripts in `deploy/render/` are not used in that setup.
+service with `node apps/web/server.cjs` and remove the `SEED_ALLOW_PRODUCTION`
+override. The demo start script is not used in that setup.
+
+The API can still be deployed on its own (for example with the web app on
+Vercel): `deploy/render/build-api.sh` builds it and `deploy/render/start-api.sh`
+runs `node dist/main.js` on its own port.
 
 Demo logins are the seeded ones: `owner@sweetcrumbs.test` / `ChangeMe123!` and
 `staff@sweetcrumbs.test` / `StaffPass123!`.
@@ -383,4 +372,3 @@ Because the database is ephemeral, the API intentionally runs
 exception to the "migrations are a release step" rule; persistent deployments
 must still run `pnpm db:deploy` before starting the API and must never seed in
 production.
-

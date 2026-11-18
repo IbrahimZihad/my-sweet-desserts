@@ -12,7 +12,7 @@
                                │ HTTPS + x-internal-key
                                │ x-bakery-slug, JWT
                     ┌──────────▼───────────────────┐
-                    │ NestJS API (services/api)    │
+                    │ Express API (services/api)   │
                     │  auth · bookings · payments  │
                     │  slots · notifications       │
                     └───┬───────────┬──────────┬───┘
@@ -45,13 +45,13 @@ the storefront level (one branded site per tenant).
 
 | Layer | Mechanism |
 | --- | --- |
-| Request | `RequestContextMiddleware` resolves `req.bakery` |
-| Auth | JWT contains `bakeryId`; `JwtAuthGuard` verifies the session's user still belongs to it |
-| Tenant | `TenantGuard` rejects mismatches between host/header tenant and JWT tenant |
+| Request | `requestContext` middleware resolves `req.bakery` |
+| Auth | JWT contains `bakeryId`; `authenticate` verifies the session's user still belongs to it |
+| Tenant | `requireTenant` rejects mismatches between host/header tenant and JWT tenant |
 | Service | Every query passes an explicit `bakeryId`; `TenantContextService.requireId()` exists for code paths that must not run without a tenant |
 | Database | Composite uniques (`[bakeryId, slug]`, `[bakeryId, email]`, `[bakeryId, startsAt]`) prevent cross-tenant collisions |
 
-Admin requests are authoritative from the JWT: `JwtAuthGuard` overwrites the
+Admin requests are authoritative from the JWT: `authenticate` overwrites the
 host-derived bakery with the user's bakery. Public requests are authoritative
 from the resolved tenant, and no client-supplied `bakeryId` is accepted.
 
@@ -159,8 +159,8 @@ Additional protections:
 
 - **Idempotency:** `Order[bakeryId, idempotencyKey]` unique; retries return the
   existing order and re-fetch the PaymentIntent client secret.
-- **Hold TTL:** `holdExpiresAt = now + bakery.holdMinutes`; a cron releases
-  unpaid holds every minute. The webhook and cron race is resolved by an atomic
+- **Hold TTL:** `holdExpiresAt = now + bakery.holdMinutes`; an in-process job
+  releases unpaid holds every minute. The webhook and job race is resolved by an atomic
   `updateMany` status transition (only one wins).
 - **Capacity edits:** lowering capacity below `bookedCount` is rejected with
   `CAPACITY_BELOW_BOOKINGS`.
@@ -185,17 +185,22 @@ Additional protections:
 - **Late payment:** if the hold expired before the webhook, the money is
   captured and immediately refunded; an unbooked deposit is never retained.
 
-## 7. API modules and endpoints
+## 7. API routers and endpoints
 
-| Module | Responsibility |
+The API is plain Express: `createApiApp()` builds the services, mounts one
+router per area and installs the shared middleware chain
+(`internalKey → authenticate → requireTenant → requireRole`).
+
+| Router | Responsibility |
 | --- | --- |
-| `AuthModule` | Password verification (scrypt), access JWT, rotating refresh sessions |
-| `BakeriesModule` | Public storefront, admin settings, cake CRUD, dashboard stats |
-| `SlotsModule` | Public availability, admin slot generation, capacity updates |
-| `BookingsModule` | Hold creation, idempotency, customer lookup, cancellation, expiry cron |
-| `PaymentsModule` | PaymentIntents, refunds, signed webhook processing |
-| `NotificationsModule` | Outbox worker, Resend templates, retry/backoff |
-| `PrismaModule` / `TenantModule` | DB client, AsyncLocalStorage tenant carrier |
+| `routes/auth.ts` | Password verification (scrypt), access JWT, rotating refresh sessions |
+| `routes/storefront.ts` | Public storefront, admin settings, cake CRUD, dashboard stats |
+| `routes/slots.ts` | Public availability, admin slot generation, capacity updates |
+| `routes/bookings.ts` | Hold creation, idempotency, customer lookup, cancellation, expiry job |
+| `routes/payments.ts` | PaymentIntents, refunds, signed webhook processing |
+| `routes/privacy.ts` | Export/erasure requests, admin audit log, retention job |
+| `notifications/` | Outbox worker, Resend templates, retry/backoff |
+| `prisma/` + `common/tenant/` | DB client, AsyncLocalStorage tenant carrier |
 
 Public endpoints (BFF key required):
 
@@ -242,29 +247,43 @@ Admin endpoints (JWT + role):
 ## 9. Email delivery
 
 Emails are written to `EmailOutbox` in the **same transaction** as the order
-transition. A cron worker leases rows (`nextAttemptAt`), renders a template, and
-sends through Resend. Failures retry with exponential backoff (max 5 attempts)
+transition. The outbox worker leases rows (`nextAttemptAt`), renders a template,
+and sends through Resend. Failures retry with exponential backoff (max 5 attempts)
 and are visible in `lastError`. This avoids the classic “booking confirmed but
 email lost” failure and survives a Resend outage.
 
 ## 10. Deployment topology
 
 ```
-Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ SQLite file
-                          │
-                          ├──▶ Stripe webhooks
-                          └──▶ Resend
+Single process (Render demo)          Split deployment
+┌────────────────────────────┐        Vercel (Next + BFF)
+│ Node                        │              │ HTTPS + x-internal-key
+│  Next.js + BFF ─┐           │        API on a Node 20 host (private)
+│  Express API ◀──┘ loopback  │              │
+│  SQLite file in /tmp        │        SQLite file on a volume
+└────────────────────────────┘              │
+        │                                   ├──▶ Stripe webhooks
+        ├──▶ Stripe webhooks                └──▶ Resend
+        └──▶ Resend
 ```
 
-- The release step runs `pnpm db:deploy` before the API process starts.
-- The Render demo is the one exception: its API service runs on the native Node
-  runtime with a SQLite file in `/tmp` (no Docker), so it migrates and seeds at
-  boot. See `deploy/render/` and the README. Persistent deployments must never do
-  this.
+- `apps/web/server.cjs` mounts `createApiApp()` and the Next.js handler on one
+  port: `/health` and `/v1/*` go to Express, everything else to Next.js.
+- The BFF still uses loopback HTTP (`API_INTERNAL_URL`), so the API keeps the
+  same internal-key and tenant contract in both shapes.
+- In the split shape the release step runs `pnpm db:deploy` before the API
+  process starts.
+- The Render demo is the one exception: its single service runs on the native
+  Node runtime with a SQLite file in `/tmp` (no Docker), so it migrates and
+  seeds at boot. See `deploy/render/` and the README. Persistent deployments
+  must never do this.
 - The API has `/health` outside the `/v1` prefix for load balancer checks.
-- Stripe webhook URL: `https://api.<domain>/v1/payments/webhook`.
-- Keep the API behind a proxy/firewall that only allows the web app, Stripe
-  webhook IPs and health checks.
+- Stripe webhook URL: `https://<host>/v1/payments/webhook`.
+- In the split shape, keep the API behind a proxy/firewall that only allows the
+  web app, Stripe webhook IPs and health checks.
+- Background jobs (hold expiry, email outbox, nightly retention and session
+  pruning) run as in-process timers created by `startBackgroundJobs()`. They are
+  safe to run in one process only; scale out by moving them to a worker.
 
 ## 11. Deliberate MVP trade-offs
 

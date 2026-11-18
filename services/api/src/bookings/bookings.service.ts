@@ -1,15 +1,13 @@
+import { Prisma } from "@prisma/client";
+import { randomInt } from "node:crypto";
+import { Logger } from "../common/logger";
 import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
   GoneException,
-  Injectable,
-  Logger,
   NotFoundException,
-} from "@nestjs/common";
-import { Prisma } from "@prisma/client";
-import { Cron } from "@nestjs/schedule";
-import { randomInt } from "node:crypto";
+} from "../common/errors";
 import {
   ActorType,
   DepositType,
@@ -39,7 +37,6 @@ const ACTIVE_HOLD_STATUSES: string[] = [
   OrderStatus.CONFIRMED,
 ];
 
-@Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
 
@@ -429,8 +426,7 @@ export class BookingsService {
     return { announcements, serverTime: now.toISOString(), timezone: bakery.timezone, hasMore };
   }
 
-  /** Releases capacity for holds that were never paid. Runs every minute. */
-  @Cron("*/1 * * * *", { name: "expire-booking-holds" })
+  /** Releases capacity for holds that were never paid. Scheduled every minute. */
   async expireStaleHolds(): Promise<void> {
     const stale = await this.prisma.order.findMany({
       where: {

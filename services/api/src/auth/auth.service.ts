@@ -1,11 +1,10 @@
-import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { Cron } from "@nestjs/schedule";
 import { UserRole, type LoginInput } from "@cakeflow/contracts";
+import { Logger } from "../common/logger";
+import { UnauthorizedException } from "../common/errors";
 import { PrismaService } from "../prisma/prisma.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 
-@Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
@@ -53,7 +52,7 @@ export class AuthService {
     if (sessionId) await this.tokens.revokeSession(sessionId);
   }
 
-  @Cron("0 3 * * *", { name: "prune-sessions" })
+  /** Scheduled by the app bootstrap at 03:00 UTC. */
   async pruneSessions(): Promise<void> {
     const result = await this.prisma.session.deleteMany({
       where: { OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: new Date(Date.now() - 7 * 86_400_000) } }] },

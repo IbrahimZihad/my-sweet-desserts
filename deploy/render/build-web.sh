@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Render build step for the CakeFlow web app (Next.js, native Node runtime).
+# Render build step for the single-process CakeFlow service
+# (Next.js storefront + BFF + Express API on one port).
 #
 # Two things this script protects against:
 #
@@ -13,6 +14,9 @@
 #     node_modules between builds, and a directory left over from a different
 #     lockfile/package-manager version can keep a second React, which fails
 #     prerendering in the same confusing way.
+#
+# The API is compiled with `tsc` into services/api/dist; apps/web/server.cjs
+# requires it at runtime.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -42,6 +46,14 @@ fi
 
 echo "[build] building contracts"
 pnpm --filter @cakeflow/contracts build
+
+echo "[build] generating Prisma client"
+# `generate` only needs the env var to be present; it never connects.
+DATABASE_URL="${DATABASE_URL:-file:./build.db}" \
+  pnpm --filter @cakeflow/api exec prisma generate
+
+echo "[build] compiling the API"
+pnpm --filter @cakeflow/api build
 
 echo "[build] building the web app"
 pnpm --filter @cakeflow/web build

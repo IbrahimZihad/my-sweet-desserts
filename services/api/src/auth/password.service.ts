@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { promisify } from "node:util";
 import {
   randomBytes,
@@ -15,7 +14,6 @@ const scrypt = promisify(scryptCallback) as (
 
 const KEY_LENGTH = 64;
 
-@Injectable()
 export class PasswordService {
   /** Computed once so a missing user and a wrong password take similar time. */
   private readonly dummyHash = this.hashSync("cakeflow-dummy-password");

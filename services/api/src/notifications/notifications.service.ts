@@ -1,8 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Cron, CronExpression } from "@nestjs/schedule";
 import type { Prisma } from "@prisma/client";
 import { Resend } from "resend";
+import type { AppConfig } from "../config/env";
+import { Logger } from "../common/logger";
 import { PrismaService } from "../prisma/prisma.service";
 import { fromJsonText, toJsonText } from "../common/json";
 
@@ -16,7 +15,6 @@ export interface EmailJob {
   payload: Record<string, unknown>;
 }
 
-@Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly resend: Resend | null;
@@ -24,11 +22,11 @@ export class NotificationsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly config: AppConfig,
   ) {
-    const apiKey = this.config.get<string>("RESEND_API_KEY");
+    const apiKey = this.config.RESEND_API_KEY;
     this.resend = apiKey ? new Resend(apiKey) : null;
-    this.from = this.config.get<string>("EMAIL_FROM") ?? "CakeFlow <bookings@example.com>";
+    this.from = this.config.EMAIL_FROM;
   }
 
   /** Enqueue inside the same transaction as the state change (transactional outbox). */
@@ -44,7 +42,7 @@ export class NotificationsService {
     });
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS, { name: "email-outbox" })
+  /** Scheduled by the app bootstrap every 30 seconds. */
   async processOutbox(): Promise<void> {
     const now = new Date();
     const due = await this.prisma.emailOutbox.findMany({

@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, User } from "@prisma/client";
+import jwt from "jsonwebtoken";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AppConfig } from "../config/env";
+import { UnauthorizedException } from "../common/errors";
 import type { LoginResponse } from "@cakeflow/contracts";
 
 const REFRESH_PREFIX = "cfr_";
@@ -15,11 +15,9 @@ export interface IssuedTokens {
   sessionId: string;
 }
 
-@Injectable()
 export class TokenService {
   constructor(
-    private readonly jwt: JwtService,
-    private readonly config: ConfigService,
+    private readonly config: AppConfig,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -28,8 +26,8 @@ export class TokenService {
     meta: { userAgent?: string; ipAddress?: string },
     db: Prisma.TransactionClient = this.prisma,
   ): Promise<IssuedTokens> {
-    const accessTtl = this.parseDuration(this.config.getOrThrow<string>("JWT_ACCESS_TTL"));
-    const refreshTtl = this.parseDuration(this.config.getOrThrow<string>("JWT_REFRESH_TTL"));
+    const accessTtl = this.parseDuration(this.config.JWT_ACCESS_TTL);
+    const refreshTtl = this.parseDuration(this.config.JWT_REFRESH_TTL);
 
     const secret = randomBytes(48).toString("base64url");
     const session = await db.session.create({
@@ -43,17 +41,15 @@ export class TokenService {
       select: { id: true },
     });
 
-    const accessToken = await this.jwt.signAsync(
+    const accessToken = jwt.sign(
       {
         sub: user.id,
         bakeryId: user.bakeryId,
         role: user.role,
         sid: session.id,
       },
-      {
-        secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
-        expiresIn: accessTtl,
-      },
+      this.config.JWT_ACCESS_SECRET,
+      { expiresIn: accessTtl },
     );
 
     return {

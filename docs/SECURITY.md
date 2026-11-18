@@ -3,16 +3,18 @@
 ## 1. Trust boundaries
 
 ```
-Browser ──(httpOnly cookies, JSON)──▶ Next.js BFF ──(JWT + x-internal-key)──▶ NestJS
+Browser ──(httpOnly cookies, JSON)──▶ Next.js BFF ──(JWT + x-internal-key)──▶ Express
                                           │
-                                          └── Stripe webhook (signature verified) ──▶ NestJS
+                                          └── Stripe webhook (signature verified) ──▶ Express
 ```
 
 - The browser is untrusted. Every value is re-validated with Zod on the BFF and
   again in the API.
 - The Next.js server is trusted to hold `INTERNAL_API_KEY` and call the API.
-- The API service is **not** intended to be publicly routable. Only
-  `/v1/payments/webhook` and `/health` are exempt from the BFF key.
+- The API routes are only intended to be reached through the Next.js BFF. When
+  the API runs as its own service it should not be publicly routable; in the
+  single-process deployment the BFF key is still required on every `/v1` route.
+  Only `/v1/payments/webhook` and `/health` are exempt from it.
 - Stripe is authenticated by webhook signature, not by the BFF key.
 
 ## 2. Admin authentication
@@ -45,9 +47,9 @@ Browser ──(httpOnly cookies, JSON)──▶ Next.js BFF ──(JWT + x-inter
 
 ### Authorisation
 
-- `JwtAuthGuard` rejects `CUSTOMER` tokens from admin endpoints.
-- `RolesGuard` enforces `OWNER` vs `STAFF` per controller.
-- `TenantGuard` rejects a JWT whose `bakeryId` does not match the resolved
+- `authenticate` rejects `CUSTOMER` tokens from admin endpoints.
+- `requireRole` enforces `OWNER` vs `STAFF` per route.
+- `requireTenant` rejects a JWT whose `bakeryId` does not match the resolved
   tenant. Admin requests take the tenant from the JWT, not the host header.
 - Every Prisma query includes `bakeryId`; there is no “find all” helper. The
   `TenantContextService.requireId()` guard makes an unscoped code path fail
