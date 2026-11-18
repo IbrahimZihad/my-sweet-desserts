@@ -257,10 +257,10 @@ Vercel (Next) ──▶ API on a Node 20 host (private) ──▶ SQLite file
 ```
 
 - The release step runs `pnpm db:deploy` before the API process starts.
-- The Render demo blueprint is the one exception: its API service runs on the
-  native Node runtime with a SQLite file in `/tmp` (no Docker), so it migrates
-  and seeds at boot. See `deploy/render/` and the README. Persistent deployments
-  must never do this.
+- The Render demo is the one exception: its API service runs on the native Node
+  runtime with a SQLite file in `/tmp` (no Docker), so it migrates and seeds at
+  boot. See `deploy/render/` and the README. Persistent deployments must never do
+  this.
 - The API has `/health` outside the `/v1` prefix for load balancer checks.
 - Stripe webhook URL: `https://api.<domain>/v1/payments/webhook`.
 - Keep the API behind a proxy/firewall that only allows the web app, Stripe

@@ -259,13 +259,17 @@ stripe listen --forward-to localhost:4000/v1/payments/webhook
 
 ### Render demo (ephemeral SQLite database, no persistence, no Docker)
 
-`render.yaml` deploys two free web services in Singapore, both on Render's
-**native Node runtime** — there is no Docker image involved:
+The demo runs on two **free Web Services** on Render's native Node runtime.
+There is no Docker image and no Blueprint: create both services by hand in the
+dashboard so everything stays on the free plan.
 
-| Service | Runtime | Notes |
+| Service | Start command | Notes |
 | --- | --- | --- |
-| `cakeflow-api` | Node 20 | NestJS API backed by a SQLite file in `/tmp` |
-| `cakeflow-web` | Node 20 | Next.js storefront + BFF |
+| `cakeflow-api` | `bash deploy/render/start-api.sh` | NestJS API backed by a SQLite file in `/tmp` |
+| `cakeflow-web` | `NODE_ENV=production pnpm --filter @cakeflow/web start` | Next.js storefront + BFF |
+
+Both services use the repository root as their root directory, the Node runtime
+and the Singapore region.
 
 SQLite is compiled into Node, so the API build
 (`deploy/render/build-api.sh`) is just dependency install, Prisma generate and
@@ -294,15 +298,77 @@ That means:
 To deploy:
 
 1. Push the repository to GitHub/GitLab.
-2. In Render, choose **New → Blueprint** and select the repository. Render reads
-   `render.yaml`.
-3. Set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` and, if you want emails,
-   `RESEND_API_KEY`. The API boots with placeholder Stripe secrets; replace
-   `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` with test keys if you want the
-   payment step to work.
-4. If Render appends a suffix to either service name, update
-   `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` and
-   `WEB_ORIGIN` to the real `*.onrender.com` URLs.
+2. In Render, choose **New → Web Service**, connect the repository, and use these
+   settings for the API:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `cakeflow-api` |
+   | Root directory | repository root |
+   | Runtime | Node |
+   | Build command | `bash deploy/render/build-api.sh` |
+   | Start command | `bash deploy/render/start-api.sh` |
+   | Health check path | `/health` |
+
+   Environment variables:
+
+   | Variable | Value |
+   | --- | --- |
+   | `NODE_ENV` | `production` |
+   | `DATABASE_URL` | `file:/tmp/cakeflow/cakeflow.db` |
+   | `WEB_ORIGIN` | `https://cakeflow-web.onrender.com` |
+   | `COOKIE_DOMAIN` | `cakeflow-web.onrender.com` |
+   | `JWT_ACCESS_SECRET` | generated secret |
+   | `JWT_REFRESH_SECRET` | generated secret |
+   | `JWT_ACCESS_TTL` | `15m` |
+   | `JWT_REFRESH_TTL` | `30d` |
+   | `INTERNAL_API_KEY` | generated secret |
+   | `STRIPE_SECRET_KEY` | `sk_test_replace_me` |
+   | `STRIPE_WEBHOOK_SECRET` | `whsec_replace_me` |
+   | `STRIPE_PLATFORM_FEE_BPS` | `0` |
+   | `EMAIL_FROM` | `CakeFlow <bookings@example.com>` |
+   | `SEED_ALLOW_PRODUCTION` | `1` |
+   | `RESEND_API_KEY` | optional, for emails |
+
+3. Create a second **New → Web Service** for the web app:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `cakeflow-web` |
+   | Root directory | repository root |
+   | Runtime | Node |
+   | Build command | `bash deploy/render/build-web.sh` |
+   | Start command | `NODE_ENV=production pnpm --filter @cakeflow/web start` |
+
+   Environment variables:
+
+   | Variable | Value |
+   | --- | --- |
+   | `NODE_ENV` | `production` |
+   | `API_INTERNAL_URL` | `https://cakeflow-api.onrender.com` |
+   | `NEXT_PUBLIC_API_URL` | `https://cakeflow-api.onrender.com` |
+   | `NEXT_PUBLIC_APP_URL` | `https://cakeflow-web.onrender.com` |
+   | `DEFAULT_BAKERY_SLUG` | `sweetcrumbs` |
+   | `INTERNAL_API_KEY` | the same value as the API service |
+   | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | optional, enables card entry |
+
+   `NODE_ENV` must be exactly `production`; `build-web.sh` forces it for the
+   build, and the start command forces it at runtime.
+
+4. Generate the three secrets once and paste the same `INTERNAL_API_KEY` into
+   both services:
+
+   ```bash
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+   ```
+
+5. If Render appends a suffix to either service name, update
+   `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`,
+   `WEB_ORIGIN` and `COOKIE_DOMAIN` to the real `*.onrender.com` URLs.
+
+6. Replace `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` with test keys if you
+   want the payment step to work. Without them the booking is still created and
+   the deposit step reports that it could not start the payment.
 
 For anything that must survive a restart, point `DATABASE_URL` at a persistent
 volume or a managed database, run `pnpm db:deploy` as a release step, start the
