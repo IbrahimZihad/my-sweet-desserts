@@ -13,7 +13,7 @@ retention periods reviewed by a qualified adviser for each market you serve.
 | CakeFlow platform operator | Processor | Hosts the software, database and email pipeline. Must sign a DPA with each bakery. |
 | Stripe | Processor / independent controller | Payment processing, fraud prevention and receipts. |
 | Resend | Processor | Transactional email delivery. |
-| Hosting + MySQL provider | Processor | Application and database infrastructure. |
+| Hosting + database provider | Processor | Application and database infrastructure. |
 
 The public notice at `/privacy` names the controller dynamically from the
 tenant record (`Bakery.legalName || Bakery.name`) and uses
@@ -93,7 +93,7 @@ The job is idempotent. It can be re-run for one tenant through
 
 ## 6. Security measures (Art. 32)
 
-- TLS in transit; MySQL should use TLS and encryption at rest.
+- TLS in transit; the database file should live on an encrypted volume.
 - Card data never reaches CakeFlow; Stripe Elements posts directly to Stripe.
 - Admin passwords use scrypt; refresh tokens are hashed and rotated; access
   tokens are short-lived and session-checked on every request.

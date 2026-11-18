@@ -143,8 +143,8 @@ export default async function PrivacyPage() {
           and expiry notices.
         </li>
         <li>
-          <strong>Hosting and database providers</strong> — the infrastructure that runs the website, API
-          and MySQL database. Access is restricted and logged.
+          <strong>Hosting and database providers</strong> - the infrastructure that runs the website, API
+          and database. Access is restricted and logged.
         </li>
         <li>
           <strong>Professional advisers and authorities</strong> — where required by law, tax, accounting

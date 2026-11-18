@@ -120,7 +120,7 @@ Implemented privacy controls (see `docs/GDPR.md`):
 
 Recommended production controls:
 
-- MySQL encryption at rest + TLS in transit.
+- Database file encryption at rest + TLS in transit.
 - Encrypt `Order.notes` and phone at the application layer if they may contain
   health/allergy information (special-category data under Australian and EU
   law). Today they rely on database access controls.
@@ -159,11 +159,11 @@ Recommended production controls:
 - [ ] Change the seeded owner password; delete or disable demo data.
 - [ ] Set `NODE_ENV=production` (enables `Secure` cookies).
 - [ ] Terminate TLS at the proxy; redirect HTTP → HTTPS.
-- [ ] Keep MySQL private; no public `3306`.
+- [ ] Keep the database file off public paths; restrict filesystem access.
 - [ ] Restrict API ingress to the web app, Stripe webhook IPs and health checks.
 - [ ] Configure Stripe webhook signing secret; rotate if exposed.
 - [ ] Use a Stripe restricted key and separate test/live keys.
-- [ ] Enable MySQL backups and test a restore.
+- [ ] Enable database backups and test a restore.
 - [ ] Add uptime checks for `/health` and alert on 5xx rate.
 - [ ] Review logs for PII before enabling a third-party log drain.
 

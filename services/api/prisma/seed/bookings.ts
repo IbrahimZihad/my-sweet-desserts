@@ -68,7 +68,7 @@ export async function seedDemoBooking(
   const created = await prisma.$transaction(async (tx) => {
     const reserved = await tx.$executeRaw`
       UPDATE Slot
-         SET bookedCount = bookedCount + 1, updatedAt = UTC_TIMESTAMP(3)
+         SET bookedCount = bookedCount + 1, updatedAt = ${new Date()}
        WHERE id = ${slot.id}
          AND bakeryId = ${bakery.id}
          AND status = 'OPEN'

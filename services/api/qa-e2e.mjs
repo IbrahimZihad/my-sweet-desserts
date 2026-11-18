@@ -6,7 +6,8 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
-process.env.DATABASE_URL = "mysql://root@127.0.0.1:3307/cakeflow";
+// Resolved against services/api/prisma (the schema directory).
+process.env.DATABASE_URL = "file:./dev.db";
 const prisma = new PrismaClient();
 const stripe = new Stripe("sk_test_qa_dummy_key");
 

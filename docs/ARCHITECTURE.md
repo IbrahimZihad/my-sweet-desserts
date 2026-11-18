@@ -74,6 +74,22 @@ Money is stored in integer cents. Currency is captured on the order so a later
 bakery currency change cannot rewrite history. Customer name/email/phone are
 snapshotted onto the order because the `User` profile is mutable.
 
+### SQLite specifics
+
+Prisma's SQLite connector supports neither `enum` nor `Json`, so:
+
+- Status/role/kind columns are `TEXT`. The allowed values live in
+  `@cakeflow/contracts` (one const object + union type per enum) and are enforced
+  by the zod schemas at the API edge.
+- JSON-shaped columns (`Cake.allergens`, `StripeEvent.payload`,
+  `OrderEvent.metadata`, `EmailOutbox.payload`) are `TEXT` holding serialised
+  JSON. Read/write them through `src/common/json.ts` so the encoding stays
+  consistent.
+- Raw SQL uses SQLite syntax: `MAX()` instead of `GREATEST()`, no
+  `UTC_TIMESTAMP()`, and `json_extract()` (JSON1) for the erasure redaction.
+- `createMany({ skipDuplicates })` is unsupported; the slot generator filters
+  existing rows first instead.
+
 ### Migrations and seeders
 
 - Schema changes are made in `prisma/schema.prisma` and captured as committed SQL
