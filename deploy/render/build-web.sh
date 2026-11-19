@@ -5,11 +5,13 @@
 #
 # Two things this script protects against:
 #
-#  1. NODE_ENV must be exactly "production" while `next build` runs. Any other
-#     value (including a dashboard override such as "Production") makes Next
-#     mix its production and development server runtimes, and static
-#     prerendering then fails with "Cannot read properties of null (reading
-#     'useContext')".
+#  1. NODE_ENV must be exactly "production" while `next build` runs. With
+#     NODE_ENV=development Next loads its development React runtime and static
+#     prerendering fails with "Cannot read properties of null (reading
+#     'useContext')" and "<Html> should not be imported outside of
+#     pages/_document". A non-standard dashboard value such as "Production"
+#     also makes Next warn and use an inconsistent runtime. The web build
+#     script pins the value itself; exporting it here covers the other steps.
 #  2. node_modules must contain exactly one copy of React. Render caches
 #     node_modules between builds, and a directory left over from a different
 #     lockfile/package-manager version can keep a second React, which fails
@@ -56,6 +58,12 @@ echo "[build] compiling the API"
 pnpm --filter @cakeflow/api build
 
 echo "[build] building the web app"
+# `@cakeflow/web` build -> scripts/build.mjs, which pins NODE_ENV=production.
 pnpm --filter @cakeflow/web build
+
+test -f apps/web/.next/BUILD_ID || {
+  echo "[build] next build finished without .next/BUILD_ID" >&2
+  exit 1
+}
 
 echo "[build] done"

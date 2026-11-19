@@ -280,12 +280,11 @@ The BFF still calls the API over loopback HTTP with the shared `x-internal-key`.
 there is no second service and no public API URL to configure.
 
 SQLite is compiled into Node. The build (`deploy/render/build-web.sh`) installs
-the workspace, forces `NODE_ENV=production` (any other value breaks Next.js
-static prerendering), verifies that exactly one copy of React resolves, builds
-`@cakeflow/contracts`, generates the Prisma client, compiles the API with `tsc`,
-then runs `next build`. The start script (`deploy/render/start-web.sh`) creates
-`/tmp/cakeflow/cakeflow.db`, applies the committed migrations, seeds the demo
-bakery and starts `node server.cjs`.
+the workspace, forces `NODE_ENV=production`, verifies that exactly one copy of
+React resolves, builds `@cakeflow/contracts`, generates the Prisma client,
+compiles the API with `tsc`, then runs `next build`. The start script
+(`deploy/render/start-web.sh`) creates `/tmp/cakeflow/cakeflow.db`, applies the
+committed migrations, seeds the demo bakery and starts `node server.cjs`.
 
 That means:
 
@@ -366,6 +365,29 @@ runs `node dist/main.js` on its own port.
 
 Demo logins are the seeded ones: `owner@sweetcrumbs.test` / `ChangeMe123!` and
 `staff@sweetcrumbs.test` / `StaffPass123!`.
+
+### If the build fails during static generation
+
+These two errors look unrelated but always have the same cause — the build saw
+a `NODE_ENV` other than `production`:
+
+```
+TypeError: Cannot read properties of null (reading 'useContext')
+Error: <Html> should not be imported outside of pages/_document.
+```
+
+They hit `/_not-found`, `/admin/login` and the `/404` and `/500` error pages,
+and the stack trace mentions `app-page.runtime.dev.js` in a production build.
+With `NODE_ENV=development`, Next 14 loads its development React runtime;
+non-standard dashboard values such as `Production` also make Next warn about an
+inconsistent runtime.
+
+The repository pins the value in three places: `apps/web/scripts/build.mjs`
+(used by `pnpm --filter @cakeflow/web build` and the root `pnpm build`),
+`apps/web/server.cjs` (runtime) and `next.config.mjs` (a direct `next build`).
+If you still see these errors, confirm the Render build command is
+`bash deploy/render/build-web.sh` and that the service has no override for
+`NODE_ENV` at build time.
 
 Because the database is ephemeral, the API intentionally runs
 `prisma migrate deploy` and the seeder at boot in this mode. That is the one

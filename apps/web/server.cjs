@@ -13,6 +13,13 @@
  */
 const http = require("node:http");
 const path = require("node:path");
+
+// Next.js and the API config both branch on NODE_ENV. Pin it before anything
+// is required: a dashboard value such as "Production" fails the API's env
+// validation, and "development" makes Next load its dev React runtime into
+// this production server.
+process.env.NODE_ENV = "production";
+
 const next = require("next");
 
 async function main() {

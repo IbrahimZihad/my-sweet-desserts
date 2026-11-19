@@ -15,6 +15,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+# The API config validates NODE_ENV against development|test|production, so a
+# dashboard value such as "Production" would abort the boot. Force the value
+# the service is actually running as.
+export NODE_ENV=production
+
 DATA_DIR="${CAKEFLOW_DATA_DIR:-/tmp/cakeflow}"
 mkdir -p "$DATA_DIR"
 

@@ -15,7 +15,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-export NODE_ENV="${NODE_ENV:-production}"
+# Force production rather than defaulting: a dashboard value such as
+# "Production" is rejected by the API config and makes Next pick the wrong
+# runtime. `server.cjs` pins it too, but the migrate/seed steps run first.
+export NODE_ENV=production
 
 DATA_DIR="${CAKEFLOW_DATA_DIR:-/tmp/cakeflow}"
 mkdir -p "$DATA_DIR"

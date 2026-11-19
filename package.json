@@ -22,5 +22,8 @@
   },
   "devDependencies": {
     "dotenv-cli": "^11.1.0"
+  },
+  "prisma": {
+    "schema": "services/api/prisma/schema.prisma"
   }
 }
