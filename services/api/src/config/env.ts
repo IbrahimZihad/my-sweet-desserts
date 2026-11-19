@@ -10,6 +10,10 @@ const envSchema = z.object({
   WEB_ORIGIN: z.string().default("http://localhost:3000"),
   COOKIE_DOMAIN: z.string().default("localhost"),
   INTERNAL_API_KEY: z.string().min(24),
+  // Opt-in subdomain routing: `<slug>.cakeflow.app`. Unset means only
+  // `*.localhost` and exact `Bakery.customDomain` matches resolve a tenant,
+  // so platform hosts such as `*.onrender.com` never become a bakery slug.
+  TENANT_BASE_DOMAIN: z.string().optional(),
 
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),

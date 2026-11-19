@@ -249,8 +249,12 @@ stripe listen --forward-to localhost:4000/v1/payments/webhook
 
 ## Deployment notes
 
-- **Web → Vercel** is supported. Set `API_INTERNAL_URL`, `INTERNAL_API_KEY`,
-  `DEFAULT_BAKERY_SLUG`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+- **Web → Vercel** is supported. Set `API_INTERNAL_URL` to the API origin
+  (`https://api.yourdomain.com` — no `/v1`, no trailing slash),
+  `INTERNAL_API_KEY`, `DEFAULT_BAKERY_SLUG`,
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_APP_URL` to the web
+  origin. `WEB_ORIGIN` on the API must be the web origin, because it drives
+  CORS and cookie settings.
 - **API → any Node 20 host** (Fly.io, Railway, Render, or a plain VM). Run
   `pnpm db:deploy` in the release step, then start `node dist/main.js`.
 - Point Stripe's webhook at `https://api.yourdomain.com/v1/payments/webhook`.
@@ -315,7 +319,6 @@ To deploy:
 
    | Variable | Value |
    | --- | --- |
-   | `NODE_ENV` | `production` |
    | `DATABASE_URL` | `file:/tmp/cakeflow/cakeflow.db` (optional; the start script defaults to this) |
    | `WEB_ORIGIN` | `https://cakeflow.onrender.com` |
    | `COOKIE_DOMAIN` | `cakeflow.onrender.com` |
@@ -334,9 +337,23 @@ To deploy:
    | `RESEND_API_KEY` | optional, for emails |
    | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | optional, enables card entry |
 
+   Do **not** set `NODE_ENV`: the build and start scripts force `production`,
+   and a dashboard value such as `Production` or `development` only causes
+   confusion. Do not set `API_INTERNAL_URL` either; `server.cjs` derives it as
+   `http://127.0.0.1:$PORT`.
+
+   **URLs in the single-service setup:** there is one URL, the service URL
+   (`https://<service>.onrender.com`). It serves the storefront, the admin
+   dashboard and the API (`/v1/*`, `/health`) on the same origin. `WEB_ORIGIN`
+   and `NEXT_PUBLIC_APP_URL` are both that URL. There is no separate API URL to
+   configure. Only the split deployment below needs one.
+
+   `TENANT_BASE_DOMAIN` is optional and only for real subdomain routing (for
+   example `cakeflow.app`). Leave it unset on `*.onrender.com`: the service
+   name is not a bakery, and `DEFAULT_BAKERY_SLUG` is what the storefront uses.
+
    `NEXT_PUBLIC_*` values are inlined by `next build`, so set them before the
-   first build. `API_INTERNAL_URL` is derived at runtime and does not need to be
-   set.
+   first build.
 
 3. Generate the secrets once:
 

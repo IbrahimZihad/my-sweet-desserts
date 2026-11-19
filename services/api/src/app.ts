@@ -85,7 +85,7 @@ export function createApiApp(env: NodeJS.ProcessEnv = process.env): CakeFlowApi 
   v1.use(cookieParser());
 
   // Request id + tenant hint first, so even a malformed body gets a request id.
-  v1.use(requestContext(prisma));
+  v1.use(requestContext(prisma, config.TENANT_BASE_DOMAIN));
   // `verify` keeps the exact bytes Stripe signs. Mounted only on `/v1`, so it
   // never consumes the body of a Next.js request in single-process mode.
   v1.use(

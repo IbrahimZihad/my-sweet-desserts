@@ -52,7 +52,10 @@ interface CacheEntry {
  * The resolved bakery is only a routing hint. The JWT middleware additionally
  * verifies that an admin's `bakeryId` matches this tenant.
  */
-export function requestContext(prisma: PrismaService): RequestHandler {
+export function requestContext(
+  prisma: PrismaService,
+  tenantBaseDomain?: string,
+): RequestHandler {
   const cache = new Map<string, CacheEntry>();
   const ttlMs = 30_000;
 
@@ -96,10 +99,12 @@ export function requestContext(prisma: PrismaService): RequestHandler {
     try {
       if (slugHeader) {
         apiReq.bakery = await bySlug(slugHeader);
-      } else if (host.endsWith(".localhost") || host === "localhost" || isIpAddress(host)) {
-        apiReq.bakery = await bySlug(subdomain(host));
       } else if (host) {
-        apiReq.bakery = (await byCustomDomain(host)) ?? (await bySlug(subdomain(host)));
+        // Exact custom domains always win. The subdomain guess is opt-in via
+        // TENANT_BASE_DOMAIN, so a shared platform host such as
+        // `cakeflow.onrender.com` is never read as the bakery "cakeflow".
+        apiReq.bakery =
+          (await byCustomDomain(host)) ?? (await bySlug(subdomain(host, tenantBaseDomain)));
       }
     } catch {
       // Tenant resolution must never take down the request; the tenant guard
@@ -306,15 +311,41 @@ function extractToken(req: ApiRequest): string | undefined {
   return cookies?.["cf_access"];
 }
 
-function subdomain(host: string): string | null {
-  const parts = host.split(".");
-  if (parts.length < 3 && !host.endsWith(".localhost")) return null;
-  const label = parts[0]!;
-  return label === "www" || label === "app" ? null : label;
+/**
+ * Returns the tenant label for a host, or null when the host is the platform
+ * itself (an IP, a bare domain, or a shared host such as `*.onrender.com`).
+ *
+ * Subdomain routing is opt-in through `TENANT_BASE_DOMAIN`: with
+ * `TENANT_BASE_DOMAIN=cakeflow.app`, `sweetcrumbs.cakeflow.app` resolves to
+ * "sweetcrumbs". Without it, only `*.localhost` yields a label, so a platform
+ * hostname is never mistaken for a bakery.
+ */
+function subdomain(host: string, tenantBaseDomain: string | undefined): string | null {
+  if (!host) return null;
+
+  if (host.endsWith(".localhost")) return firstLabel(host);
+
+  const base = normalizeBaseDomain(tenantBaseDomain);
+  if (base && host.endsWith(`.${base}`)) {
+    return firstLabel(host.slice(0, -(base.length + 1)));
+  }
+  return null;
 }
 
-function isIpAddress(host: string): boolean {
-  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
+function firstLabel(host: string): string | null {
+  const label = host.split(".")[0] ?? "";
+  return label === "www" || label === "app" ? null : label || null;
+}
+
+function normalizeBaseDomain(value: string | undefined): string | null {
+  if (!value) return null;
+  const base = value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/^\.+|\.+$/g, "");
+  return base.includes(".") ? base : null;
 }
 
 function safeEqual(a: string, b: string): boolean {

@@ -38,8 +38,15 @@ the storefront level (one branded site per tenant).
 
 1. `x-bakery-slug` header set by the Next.js BFF (never trusted for authz).
 2. Exact `Bakery.customDomain` match.
-3. Subdomain label, e.g. `sweetcrumbs.cakeflow.app`.
-4. `DEFAULT_BAKERY_SLUG` for local development only.
+3. Subdomain label, only when `TENANT_BASE_DOMAIN` is set — e.g. with
+   `TENANT_BASE_DOMAIN=cakeflow.app`, `sweetcrumbs.cakeflow.app` resolves to
+   `sweetcrumbs`. `*.localhost` always works for development.
+4. `DEFAULT_BAKERY_SLUG` otherwise.
+
+Subdomain routing is opt-in on purpose. Shared platform hosts such as
+`cakeflow.onrender.com` or `cakeflow.vercel.app` have three or more labels, and
+a blanket "three labels means subdomain" rule would treat the service name as a
+bakery slug and reject every storefront request with `TENANT_REQUIRED`.
 
 **Enforcement layers:**
 
@@ -241,8 +248,9 @@ Admin endpoints (JWT + role):
 - **Admin session:** access + refresh tokens live in httpOnly cookies. The
   browser never sees the JWT; `SessionKeeper` rotates the refresh token every
   10 minutes while the dashboard is open.
-- **Tenant UI:** `DEFAULT_BAKERY_SLUG`/subdomain resolution is centralised in
-  `lib/tenant.ts`; the API still validates every request.
+- **Tenant UI:** `DEFAULT_BAKERY_SLUG` / optional `TENANT_BASE_DOMAIN`
+  resolution is centralised in `lib/tenant.ts`; the API still validates every
+  request.
 
 ## 9. Email delivery
 
